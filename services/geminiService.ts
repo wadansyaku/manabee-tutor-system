@@ -5,7 +5,18 @@ import { SummaryJson, HomeworkJson, QuizJson } from "../types";
 // This is for demonstration purposes within the "Build" environment.
 // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization - only create the client when needed and API key is available
+let aiClient: GoogleGenAI | null = null;
+
+const getAIClient = (): GoogleGenAI => {
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is missing. Please set GEMINI_API_KEY in your .env file.");
+  }
+  if (!aiClient) {
+    aiClient = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+  return aiClient;
+};
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
@@ -65,10 +76,7 @@ const quizSchema: Schema = {
 };
 
 export const generateLessonContent = async (transcript: string, studentContext: string) => {
-  if (!process.env.API_KEY) {
-    console.error("API Key is missing");
-    throw new Error("API Key is missing. Please set it in the environment.");
-  }
+  const ai = getAIClient(); // Will throw if no API key
 
   // We run these in parallel for efficiency
   const summaryPromise = ai.models.generateContent({
@@ -135,4 +143,9 @@ export const generateLessonContent = async (transcript: string, studentContext: 
     console.error("AI Generation Error:", error);
     throw error;
   }
+};
+
+// Check if AI features are available (for UI to show/hide AI buttons)
+export const isAIAvailable = (): boolean => {
+  return !!process.env.API_KEY;
 };
