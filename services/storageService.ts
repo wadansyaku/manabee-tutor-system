@@ -62,6 +62,14 @@ export const DateUtils = {
       date: `${year}-${month}-${day}`, 
       time: `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}` 
     };
+  },
+
+  // Display helper for deadline countdown
+  formatDaysRemaining: (days: number): string => {
+    if (days < 0) return '期限切れ';
+    if (days === 0) return '今日';
+    if (days === 1) return '明日';
+    return `あと${days}日`;
   }
 };
 
