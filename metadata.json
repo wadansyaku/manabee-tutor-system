@@ -1,0 +1,8 @@
+{
+  "name": "Manabee - Tutor Management System",
+  "description": "A comprehensive class management platform for Tutors, Students, and Guardians featuring AI-driven summarization, homework generation, and auditing.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

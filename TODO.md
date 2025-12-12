@@ -1,0 +1,22 @@
+# Implementation Tasks
+
+- [x] **P0: Architecture & Roles**
+    - [x] Define Types (Admin, Jobs, Scores)
+    - [x] Robust DateUtils (Fix countdown drift)
+    - [x] App Routing (Login -> Role Home)
+    - [x] Remove Legacy UI (Old reflections, Private messages)
+    - [x] Fix QuickReflection build error
+    - [x] Fix Login Logic (Local Auth w/ Password)
+    - [x] Add Student View Toggle for Guardians
+- [x] **P0: Core Features**
+    - [x] Question Board UI (Photo upload stub)
+    - [x] Character Reflection UI (Integration)
+    - [x] Firebase Interface Injection
+- [ ] **P1: Logic & AI**
+    - [ ] Move AI Logic to Cloud Functions (Architecture)
+    - [ ] Real Photo Upload -> Firestore Triggers
+    - [ ] Exam Score Visualization (Graph/Table)
+- [ ] **P2: Polish & Admin**
+    - [ ] Admin Dashboard (API Usage, Billing)
+    - [ ] Printing Layout (Mistake Notebook)
+    - [ ] OpenAI API Fallback option
