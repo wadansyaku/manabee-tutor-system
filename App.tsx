@@ -16,6 +16,7 @@ import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from
 import { UserManagement } from './components/admin/UserManagement';
 import { SystemSettings } from './components/admin/SystemSettings';
 import { UsageMonitor } from './components/admin/UsageMonitor';
+import { DatabaseSeeder } from './components/admin/DatabaseSeeder';
 
 // --- Login Screen ---
 const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void }) => {
@@ -339,6 +340,7 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
         { name: 'ユーザー管理', path: '/admin/users' },
         { name: 'システム設定', path: '/admin/settings' },
         { name: '使用状況', path: '/admin/usage' },
+        { name: 'DB初期化', path: '/admin/database' },
         { name: '宿題', path: '/homework' },
         { name: '成績', path: '/scores' },
         { name: '受験校', path: '/schools' },
@@ -651,6 +653,14 @@ export default function App() {
               <UsageMonitor
                 currentUser={effectiveUser}
                 logs={logs}
+              />
+            ) : <Navigate to="/" replace />
+          } />
+          <Route path="/admin/database" element={
+            effectiveUser.role === UserRole.ADMIN ? (
+              <DatabaseSeeder
+                currentUser={effectiveUser}
+                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
               />
             ) : <Navigate to="/" replace />
           } />
