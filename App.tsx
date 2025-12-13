@@ -17,18 +17,25 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
   const [newPassword, setNewPassword] = useState('');
   const [tempUser, setTempUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleEmailSubmit = () => {
-    setError(null);
-    const res = StorageService.login(email); // Check if user exists (mock auth check)
-    if (!res.success && res.error === 'ユーザーが見つかりません') {
-      setError('ユーザーが見つかりません');
+  const handleEmailSubmit = async () => {
+    if (!email) {
+      setError('メールアドレスを入力してください');
       return;
     }
+    setError(null);
+    setIsLoading(true);
 
-    // Check role by peeking at error message (hacky but effective for mock)
-    // If "パスワードを入力してください" -> User exists but needs password.
-    // If success -> Student (no password needed).
+    // Simulate network delay for better UX
+    await new Promise(r => setTimeout(r, 300));
+
+    const res = StorageService.login(email);
+    if (!res.success && res.error === 'ユーザーが見つかりません') {
+      setError('ユーザーが見つかりません');
+      setIsLoading(false);
+      return;
+    }
 
     const check = StorageService.login(email, '');
     if (check.success) {
@@ -38,10 +45,19 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     } else {
       setError(check.error || 'ログインエラー');
     }
+    setIsLoading(false);
   };
 
-  const handlePasswordSubmit = () => {
+  const handlePasswordSubmit = async () => {
+    if (!password) {
+      setError('パスワードを入力してください');
+      return;
+    }
     setError(null);
+    setIsLoading(true);
+
+    await new Promise(r => setTimeout(r, 300));
+
     const res = StorageService.login(email, password);
     if (res.success && res.user) {
       if (res.user.isInitialPassword) {
@@ -53,118 +69,221 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     } else {
       setError(res.error || '認証に失敗しました');
     }
+    setIsLoading(false);
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!newPassword || newPassword.length < 4) {
       setError('パスワードは4文字以上にしてください');
       return;
     }
+    setIsLoading(true);
+
     if (tempUser) {
       const success = StorageService.changePassword(tempUser.id, newPassword);
       if (success) {
-        alert('パスワードを変更しました。新しいパスワードでログインしてください。');
         setStep('password');
         setPassword('');
         setNewPassword('');
         setTempUser(null);
+        setError(null);
       } else {
         setError('パスワード変更に失敗しました');
       }
     }
+    setIsLoading(false);
+  };
+
+  const quickLogin = (userEmail: string) => {
+    setEmail(userEmail);
+    setError(null);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold text-indigo-600 mb-2">Manabee</h1>
-        <p className="text-gray-500 mb-6 text-sm">自律学習を支援するプラットフォーム</p>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{ animationDuration: '4s' }}></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{ animationDuration: '5s', animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDuration: '6s', animationDelay: '2s' }}></div>
+      </div>
 
+      {/* Login Card */}
+      <div className="relative bg-white/10 backdrop-blur-xl p-8 rounded-3xl shadow-2xl w-full max-w-md border border-white/20">
+        {/* Logo & Title */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl shadow-lg mb-4 transform hover:scale-105 transition-transform">
+            <span className="text-3xl">🐝</span>
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Manabee</h1>
+          <p className="text-white/60 text-sm">自律学習を支援するプラットフォーム</p>
+        </div>
+
+        {/* Email Step */}
         {step === 'email' && (
-          <div className="space-y-4 animate-fade-in">
+          <div className="space-y-5 animate-fade-in">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">メールアドレス</label>
+              <label className="block text-sm font-medium text-white/80 mb-2">メールアドレス</label>
               <input
                 type="email"
-                className="w-full border-gray-300 rounded p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="demo@manabee.com"
+                placeholder="your@email.com"
                 onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()}
+                disabled={isLoading}
               />
             </div>
             <button
               onClick={handleEmailSubmit}
-              className="w-full bg-indigo-600 text-white py-2 rounded font-bold hover:bg-indigo-700 transition"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-4 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              次へ
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  確認中...
+                </>
+              ) : '次へ →'}
             </button>
           </div>
         )}
 
+        {/* Password Step */}
         {step === 'password' && (
-          <div className="space-y-4 animate-fade-in">
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                {email[0]?.toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white/80 text-sm truncate">{email}</p>
+              </div>
+              <button onClick={() => setStep('email')} className="text-white/40 hover:text-white/80 text-xs">変更</button>
+            </div>
+
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">パスワード</label>
+              <label className="block text-sm font-medium text-white/80 mb-2">パスワード</label>
               <input
                 type="password"
-                className="w-full border-gray-300 rounded p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handlePasswordSubmit()}
                 autoFocus
+                disabled={isLoading}
+                placeholder="••••••••"
               />
-              <p className="text-xs text-gray-400 mt-1">※初期パスワードは "123" です</p>
+              <p className="text-white/40 text-xs mt-2">※初期パスワードは "123" です</p>
             </div>
             <button
               onClick={handlePasswordSubmit}
-              className="w-full bg-indigo-600 text-white py-2 rounded font-bold hover:bg-indigo-700 transition"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-4 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              ログイン
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  ログイン中...
+                </>
+              ) : 'ログイン'}
             </button>
-            <button onClick={() => setStep('email')} className="w-full text-sm text-gray-500 mt-2 hover:underline">戻る</button>
           </div>
         )}
 
+        {/* Change Password Step */}
         {step === 'change_password' && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="bg-yellow-50 p-3 rounded border border-yellow-200 text-sm text-yellow-800 mb-2">
-              初回ログインのため、パスワード変更が必要です。
+          <div className="space-y-5 animate-fade-in">
+            <div className="bg-amber-500/20 border border-amber-400/30 p-4 rounded-xl text-amber-200 text-sm flex items-start gap-3">
+              <span className="text-xl">🔐</span>
+              <p>セキュリティのため、初回ログイン時はパスワードの変更が必要です。</p>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">新しいパスワード</label>
+              <label className="block text-sm font-medium text-white/80 mb-2">新しいパスワード</label>
               <input
                 type="password"
-                className="w-full border-gray-300 rounded p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
                 autoFocus
+                disabled={isLoading}
+                placeholder="4文字以上"
               />
             </div>
             <button
               onClick={handleChangePassword}
-              className="w-full bg-indigo-600 text-white py-2 rounded font-bold hover:bg-indigo-700 transition"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-xl font-bold hover:from-amber-600 hover:to-orange-600 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              変更してログインへ
+              {isLoading ? '処理中...' : 'パスワードを変更'}
             </button>
           </div>
         )}
 
-        {error && <p className="text-red-500 text-sm mt-4 text-center bg-red-50 p-2 rounded">{error}</p>}
+        {/* Error Message */}
+        {error && (
+          <div className="mt-4 bg-red-500/20 border border-red-400/30 p-4 rounded-xl text-red-200 text-sm flex items-center gap-3 animate-shake">
+            <span className="text-xl">⚠️</span>
+            <p>{error}</p>
+          </div>
+        )}
 
-        <div className="mt-8 pt-6 border-t border-gray-100 text-xs text-gray-400">
-          <p className="font-bold mb-2">開発用ショートカット:</p>
+        {/* Quick Login Buttons */}
+        <div className="mt-8 pt-6 border-t border-white/10">
+          <p className="text-white/40 text-xs mb-3 text-center">開発用クイックログイン</p>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setEmail('tutor@manabee.com')} className="bg-gray-100 p-2 rounded hover:bg-gray-200">👨‍🏫 Tutor (PW:123)</button>
-            <button onClick={() => setEmail('student@manabee.com')} className="bg-gray-100 p-2 rounded hover:bg-gray-200">👦 Student (PW不要)</button>
-            <button onClick={() => setEmail('mom@manabee.com')} className="bg-gray-100 p-2 rounded hover:bg-gray-200">👩 Guardian (PW:123)</button>
-            <button onClick={() => setEmail('admin@manabee.com')} className="bg-gray-100 p-2 rounded hover:bg-gray-200">⚙️ Admin (PW:123)</button>
+            <button
+              onClick={() => quickLogin('tutor@manabee.com')}
+              className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
+            >
+              <span className="text-lg">👨‍🏫</span> 講師
+            </button>
+            <button
+              onClick={() => quickLogin('student@manabee.com')}
+              className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
+            >
+              <span className="text-lg">👦</span> 生徒
+            </button>
+            <button
+              onClick={() => quickLogin('mom@manabee.com')}
+              className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
+            >
+              <span className="text-lg">👩</span> 保護者
+            </button>
+            <button
+              onClick={() => quickLogin('admin@manabee.com')}
+              className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
+            >
+              <span className="text-lg">⚙️</span> 管理者
+            </button>
           </div>
         </div>
       </div>
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+        .animate-fade-in { animation: fade-in 0.3s ease-out; }
+        .animate-shake { animation: shake 0.3s ease-out; }
+      `}</style>
     </div>
   );
 };
+
 
 // --- Layout & Nav ---
 interface LayoutProps {
