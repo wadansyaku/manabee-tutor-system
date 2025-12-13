@@ -30,10 +30,15 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 
-// Check if Firebase is configured
+// Check if Firebase is configured AND enabled
 export function isFirebaseConfigured(): boolean {
     try {
-        // Try to load config from environment variables (Vite style)
+        // First check if Firebase mode is explicitly enabled
+        const appMode = import.meta.env.VITE_APP_MODE;
+        if (appMode !== 'firebase') {
+            return false;
+        }
+        // Then check if API key is provided
         if (import.meta.env.VITE_FIREBASE_API_KEY) {
             return true;
         }
