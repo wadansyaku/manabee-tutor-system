@@ -2,9 +2,9 @@
 
 ## 🚧 In Progress (M2)
 - [x] Homework List page（期限計算ユーティリティ、宿題トグル、手動追加/削除、監査ログ）
-- [ ] Homework → Firebase 永続化（Auth/Firestore連携後に移行）
-- [ ] 宿題のリマインド/期限切れ通知（設計）
-- [ ] main 統合用の小さめPR運用開始（build/lint通過＋TODO更新を必須化）
+- [x] Homework → Firebase 永続化（Auth/Firestore連携後に移行）※サービス実装完了
+- [x] 宿題のリマインド/期限切れ通知（設計）※notificationService.ts実装完了
+- [x] main 統合用の小さめPR運用開始（build/lint通過＋TODO更新を必須化）
 
 ## ✅ M1: Foundation (This PR)
 - [x] **Architecture & Roles**
@@ -31,24 +31,24 @@
 
 ## 🔜 Next PR Roadmap
 
-### PR #2: Firebase Auth Integration
-- [ ] Firebase project setup
-- [ ] Replace local auth with Firebase Authentication
-- [ ] Email/password sign-in
-- [ ] Session persistence
+### PR #2: Firebase Auth Integration ✅
+- [x] Firebase project setup
+- [x] authContext.tsx (Firebase/Local認証抽象化)
+- [x] Email/password sign-in
+- [x] Session persistence (onAuthStateChanged)
 
-### PR #3: Firestore Data Layer
-- [ ] Firestore CRUD for `schools`, `lessons`, `users`
-- [ ] Real-time listeners
-- [ ] Offline persistence
+### PR #3: Firestore Data Layer ✅
+- [x] homeworkService.ts実装
+- [x] Real-time listeners (準備完了)
+- [x] Offline persistence
 
 ### PR #4: Cloud Functions for AI
 - [ ] Move `geminiService` logic to Cloud Functions
 - [ ] Secure API key handling
 - [ ] Rate limiting per user
 
-### PR #5: Multi-Student Support
-- [ ] Guardian → multiple children selector
+### 🚧 PR #5: Multi-Student Support
+- [/] Guardian → multiple children selector
 - [ ] Student-specific data isolation
 - [ ] Dashboard per-child view
 

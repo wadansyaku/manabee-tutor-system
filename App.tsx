@@ -9,6 +9,7 @@ import { RoleBadge } from './components/RoleBadge';
 import { QuestionBoard } from './components/QuestionBoard';
 import { Dashboard } from './components/Dashboard';
 import { HomeworkList } from './components/HomeworkList';
+import { ExamScoreManager } from './components/ExamScoreManager';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './components/icons';
 
 // --- Login Screen ---
@@ -320,6 +321,7 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
         ...common,
         { name: '質問レビュー', path: '/questions' },
         { name: '宿題管理', path: '/homework' },
+        { name: '成績管理', path: '/scores' },
         { name: '授業記録', path: '/lessons/l1' }, // Fixed ID for MVP
         { name: '受験校管理', path: '/schools' },
       ];
@@ -329,6 +331,7 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
     return [
       ...common,
       { name: '宿題', path: '/homework' },
+      { name: '成績', path: '/scores' },
       { name: '学習状況', path: '/lessons/l1' },
       { name: '受験校', path: '/schools' },
     ];
@@ -556,6 +559,14 @@ export default function App() {
               onAddSchool={handleAddSchool}
               onDeleteSchool={handleDeleteSchool}
               permissionMode={effectiveUser.role === UserRole.TUTOR ? 'strict' : 'collaborative'}
+            />
+          } />
+
+          <Route path="/scores" element={
+            <ExamScoreManager
+              currentUser={effectiveUser}
+              schools={schools}
+              onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
             />
           } />
 
