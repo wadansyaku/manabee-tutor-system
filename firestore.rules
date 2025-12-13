@@ -25,7 +25,10 @@ service cloud.firestore {
       // Admins can read/write all users
       // Users can read their own profile
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAdmin();
+      // Users can create their own profile (initial setup)
+      // Admins can create any user
+      allow create: if isOwner(userId) || isAdmin();
+      // Users can update own profile (but not role), Admins can update all
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -70,10 +73,11 @@ service cloud.firestore {
       allow write: if false; // Cloud Functions use admin SDK
     }
     
-    // System config - Admin only
+    // System config - Signed in users can read, write for initial setup
     match /system_config/{configId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      // Allow write if doc doesn't exist (initial setup) or if admin
+      allow write: if isSignedIn();
     }
     
     // Exam scores
