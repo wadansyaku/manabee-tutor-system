@@ -28,6 +28,9 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Check if Firebase mode is enabled
+  const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+
   const handleEmailSubmit = async () => {
     if (!email) {
       setError('メールアドレスを入力してください');
@@ -36,23 +39,28 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     setError(null);
     setIsLoading(true);
 
-    // Simulate network delay for better UX
     await new Promise(r => setTimeout(r, 300));
 
-    const res = StorageService.login(email);
-    if (!res.success && res.error === 'ユーザーが見つかりません') {
-      setError('ユーザーが見つかりません');
-      setIsLoading(false);
-      return;
-    }
-
-    const check = StorageService.login(email, '');
-    if (check.success) {
-      onLoginSuccess(check.user!);
-    } else if (check.error === 'パスワードを入力してください') {
+    if (isFirebaseMode) {
+      // Firebase mode: go directly to password step
       setStep('password');
     } else {
-      setError(check.error || 'ログインエラー');
+      // Local mode: check if user exists
+      const res = StorageService.login(email);
+      if (!res.success && res.error === 'ユーザーが見つかりません') {
+        setError('ユーザーが見つかりません');
+        setIsLoading(false);
+        return;
+      }
+
+      const check = StorageService.login(email, '');
+      if (check.success) {
+        onLoginSuccess(check.user!);
+      } else if (check.error === 'パスワードを入力してください') {
+        setStep('password');
+      } else {
+        setError(check.error || 'ログインエラー');
+      }
     }
     setIsLoading(false);
   };
@@ -67,16 +75,32 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
 
     await new Promise(r => setTimeout(r, 300));
 
-    const res = StorageService.login(email, password);
-    if (res.success && res.user) {
-      if (res.user.isInitialPassword) {
-        setTempUser(res.user);
-        setStep('change_password');
-      } else {
-        onLoginSuccess(res.user);
+    if (isFirebaseMode) {
+      // Firebase Auth login
+      try {
+        const { firebaseLogin } = await import('./services/firebaseService');
+        const res = await firebaseLogin(email, password);
+        if (res.success && res.user) {
+          onLoginSuccess(res.user);
+        } else {
+          setError(res.error || '認証に失敗しました');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Firebase認証エラー');
       }
     } else {
-      setError(res.error || '認証に失敗しました');
+      // Local storage login
+      const res = StorageService.login(email, password);
+      if (res.success && res.user) {
+        if (res.user.isInitialPassword) {
+          setTempUser(res.user);
+          setStep('change_password');
+        } else {
+          onLoginSuccess(res.user);
+        }
+      } else {
+        setError(res.error || '認証に失敗しました');
+      }
     }
     setIsLoading(false);
   };
@@ -107,6 +131,7 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     setEmail(userEmail);
     setError(null);
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4 relative overflow-hidden">
