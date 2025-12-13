@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { User, UserRole, StudentSchool, Lesson, AuditLog, QuestionJob } from '../types';
 import { DateUtils } from '../services/storageService';
+import { notificationService } from '../services/notificationService';
+import { getHomeworkMeta } from '../services/homeworkUtils';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './icons';
 
 interface DashboardProps {
@@ -262,8 +264,8 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-gray-900">宿題の進捗</h3>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${completionRate >= 80 ? 'bg-green-100 text-green-700' :
-                            completionRate >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-red-100 text-red-700'
+                        completionRate >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
                         }`}>
                         {completionRate}% 完了
                     </span>
@@ -272,8 +274,8 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
                 <div className="h-4 bg-gray-100 rounded-full overflow-hidden mb-4">
                     <div
                         className={`h-full rounded-full transition-all ${completionRate >= 80 ? 'bg-green-500' :
-                                completionRate >= 50 ? 'bg-yellow-500' :
-                                    'bg-red-500'
+                            completionRate >= 50 ? 'bg-yellow-500' :
+                                'bg-red-500'
                             }`}
                         style={{ width: `${completionRate}%` }}
                     ></div>
@@ -525,7 +527,18 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
 
 // ===== MAIN DASHBOARD ROUTER =====
 export const Dashboard: React.FC<DashboardProps> = (props) => {
-    const { currentUser } = props;
+    const { currentUser, lesson } = props;
+
+    // Check due items and trigger notifications on dashboard load
+    useEffect(() => {
+        if (lesson.aiHomework?.items) {
+            const itemsWithMeta = lesson.aiHomework.items.map(item => ({
+                ...item,
+                ...getHomeworkMeta(lesson.scheduledAt, item),
+            }));
+            notificationService.checkDueItems(itemsWithMeta);
+        }
+    }, [lesson]);
 
     switch (currentUser.role) {
         case UserRole.STUDENT:

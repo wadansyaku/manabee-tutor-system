@@ -8,11 +8,18 @@ const STORAGE_KEY_QUESTIONS = 'manabee_questions_v1';
 const STORAGE_KEY_USERS = 'manabee_users_v2';
 
 // --- Configuration ---
-const APP_MODE: 'local' | 'firebase' = 'local'; // Switch here for Environment Injection
+const getAppMode = (): 'local' | 'firebase' => {
+  try {
+    const mode = import.meta.env.VITE_APP_MODE;
+    if (mode === 'firebase') return 'firebase';
+  } catch { /* ignore */ }
+  return 'local';
+};
+const APP_MODE: 'local' | 'firebase' = getAppMode();
 
 // --- Date Utils (Global) ---
 export const DateUtils = {
-  getNow: (): Date => new Date(), 
+  getNow: (): Date => new Date(),
 
   parse: (dateStr: string): Date => {
     const d = new Date(dateStr);
@@ -32,9 +39,9 @@ export const DateUtils = {
   getDaysRemaining: (targetDateStr: string, _isAllDay: boolean, baseDate: Date = new Date()): number => {
     const target = new Date(targetDateStr);
     if (isNaN(target.getTime())) return -999;
-    
+
     const current = new Date(baseDate);
-    
+
     // Normalize to local midnight (00:00:00) to ignore time differences
     const start = new Date(current.getFullYear(), current.getMonth(), current.getDate());
     const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
@@ -43,7 +50,7 @@ export const DateUtils = {
     // Use Math.round to handle potential DST (Daylight Saving Time) shifts safely
     return Math.round(diffTime / (1000 * 60 * 60 * 24));
   },
-  
+
   formatDate: (dateStr: string): string => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '-';
@@ -60,16 +67,16 @@ export const DateUtils = {
     if (!timeInput) return `${dateInput}T00:00:00`;
     return `${dateInput}T${timeInput}:00`;
   },
-  
+
   parseToInputs: (isoString: string) => {
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return { date: '', time: '' };
     const year = d.getFullYear();
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
     const day = d.getDate().toString().padStart(2, '0');
-    return { 
-      date: `${year}-${month}-${day}`, 
-      time: `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}` 
+    return {
+      date: `${year}-${month}-${day}`,
+      time: `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
     };
   },
 
@@ -89,7 +96,7 @@ interface LocalUser extends User {
 // --- DataStore Interface ---
 interface DataStore {
   generateId(): string;
-  
+
   // Users
   loadUsers(): LocalUser[];
   saveUsers(users: LocalUser[]): void;
@@ -111,7 +118,7 @@ interface DataStore {
   // Logs
   loadLogs(): AuditLog[];
   addLog(user: User, action: string, summary: string): void;
-  
+
   // Backup
   exportData(): string;
   importData(jsonStr: string): boolean;
@@ -194,8 +201,8 @@ class LocalDataStore implements DataStore {
   saveQuestion(question: QuestionJob): void {
     const questions = this.loadQuestions();
     const index = questions.findIndex(q => q.id === question.id);
-    let newQuestions = index >= 0 
-      ? questions.map(q => q.id === question.id ? question : q) 
+    let newQuestions = index >= 0
+      ? questions.map(q => q.id === question.id ? question : q)
       : [question, ...questions];
     localStorage.setItem(STORAGE_KEY_QUESTIONS, JSON.stringify(newQuestions));
   }
@@ -253,24 +260,24 @@ class LocalDataStore implements DataStore {
 // --- Firebase Stub Implementation ---
 class FirebaseDataStore implements DataStore {
   generateId(): string { throw new Error("Firebase Not Implemented"); }
-  
+
   loadUsers(): LocalUser[] { throw new Error("Firebase Not Implemented"); }
   saveUsers(users: LocalUser[]): void { throw new Error("Firebase Not Implemented"); }
   login(email: string, password?: string): { success: boolean, user?: User, error?: string } { throw new Error("Firebase Not Implemented"); }
   changePassword(userId: string, newPassword: string): boolean { throw new Error("Firebase Not Implemented"); }
-  
+
   loadSchools(): StudentSchool[] { throw new Error("Firebase Not Implemented"); }
   saveSchools(schools: StudentSchool[]): void { throw new Error("Firebase Not Implemented"); }
-  
+
   loadLesson(): Lesson { throw new Error("Firebase Not Implemented"); }
   saveLesson(lesson: Lesson): void { throw new Error("Firebase Not Implemented"); }
-  
+
   loadQuestions(): QuestionJob[] { throw new Error("Firebase Not Implemented"); }
   saveQuestion(question: QuestionJob): void { throw new Error("Firebase Not Implemented"); }
-  
+
   loadLogs(): AuditLog[] { throw new Error("Firebase Not Implemented"); }
   addLog(user: User, action: string, summary: string): void { throw new Error("Firebase Not Implemented"); }
-  
+
   exportData(): string { throw new Error("Firebase Not Implemented"); }
   importData(jsonStr: string): boolean { throw new Error("Firebase Not Implemented"); }
   resetData(): void { throw new Error("Firebase Not Implemented"); }
@@ -282,24 +289,24 @@ const currentStore: DataStore = APP_MODE === 'local' ? new LocalDataStore() : ne
 // --- Export Wrapper (Maintains existing API) ---
 export const StorageService = {
   generateId: () => currentStore.generateId(),
-  
+
   loadUsers: () => currentStore.loadUsers(),
   saveUsers: (users: LocalUser[]) => currentStore.saveUsers(users),
   login: (email: string, password?: string) => currentStore.login(email, password),
   changePassword: (uid: string, pw: string) => currentStore.changePassword(uid, pw),
-  
+
   loadSchools: () => currentStore.loadSchools(),
   saveSchools: (schools: StudentSchool[]) => currentStore.saveSchools(schools),
-  
+
   loadLesson: () => currentStore.loadLesson(),
   saveLesson: (lesson: Lesson) => currentStore.saveLesson(lesson),
-  
+
   loadQuestions: () => currentStore.loadQuestions(),
   saveQuestion: (q: QuestionJob) => currentStore.saveQuestion(q),
-  
+
   loadLogs: () => currentStore.loadLogs(),
   addLog: (u: User, a: string, s: string) => currentStore.addLog(u, a, s),
-  
+
   exportData: () => currentStore.exportData(),
   importData: (json: string) => currentStore.importData(json),
   resetData: () => currentStore.resetData()

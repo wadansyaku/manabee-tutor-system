@@ -31,7 +31,7 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 
 // Check if Firebase is configured
-export const isFirebaseConfigured = (): boolean => {
+export function isFirebaseConfigured(): boolean {
     try {
         // Try to load config from environment variables (Vite style)
         if (import.meta.env.VITE_FIREBASE_API_KEY) {
@@ -41,7 +41,7 @@ export const isFirebaseConfigured = (): boolean => {
     } catch {
         return false;
     }
-};
+}
 
 // Initialize Firebase (lazy)
 const initializeFirebase = () => {
