@@ -443,103 +443,229 @@ const Dashboard = ({ currentUser, schools, lesson, logs }: { currentUser: User, 
   )
     .map(e => ({
       ...e,
-      days: DateUtils.getDaysRemaining(e.date, e.isAllDay) // Remove fixed CURRENT_DATE
+      days: DateUtils.getDaysRemaining(e.date, e.isAllDay)
     }))
-    .filter(e => e.days >= 0) // Only future or today
+    .filter(e => e.days >= 0)
     .sort((a, b) => a.days - b.days)
     .slice(0, 5);
 
   const homeworkItems = lesson.aiHomework?.items.filter(h => !h.isCompleted) || [];
+  const completedHomework = lesson.aiHomework?.items.filter(h => h.isCompleted) || [];
+  const totalHomework = lesson.aiHomework?.items.length || 0;
+  const completionRate = totalHomework > 0 ? Math.round((completedHomework.length / totalHomework) * 100) : 0;
+
+  // Find next exam
+  const nextExam = upcomingEvents.find(e => e.type === 'exam');
+
+  // Stats data (mock for now - would be calculated from actual data)
+  const stats = {
+    studyHours: 12.5,
+    problemsSolved: 47,
+    streak: 5,
+    daysToExam: nextExam?.days ?? null
+  };
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-8 text-white shadow-lg">
-        <h1 className="text-2xl md:text-3xl font-bold mb-2">こんにちは、{currentUser.name}さん</h1>
-        <p className="opacity-90">
-          {currentUser.role === UserRole.STUDENT
-            ? "今日の目標をクリアして、自由時間をゲットしよう！"
-            : "今日の学習状況と進捗を確認しましょう。"}
-        </p>
-      </div>
-
-      {/* Next Lesson Info */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div className="flex-1 w-full">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <CalendarIcon className="w-4 h-4" /> 次回の授業
-          </h3>
-          <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4 mb-3">
-            <div className="text-3xl font-bold text-gray-900">12月17日 (水)</div>
-            <div className="text-xl text-indigo-600 font-medium">18:30 - 20:30 (120分)</div>
+    <div className="space-y-8 max-w-6xl mx-auto">
+      {/* Welcome Banner with Gradient */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-3xl p-8 text-white shadow-xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl"></div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-2xl">
+              {currentUser.role === UserRole.STUDENT ? '🎓' : currentUser.role === UserRole.TUTOR ? '👨‍🏫' : '👪'}
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold">こんにちは、{currentUser.name}さん！</h1>
+              <p className="opacity-80 text-sm">
+                {new Date().toLocaleDateString('ja-JP', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
           </div>
+          <p className="text-white/90 text-lg mt-4">
+            {currentUser.role === UserRole.STUDENT
+              ? "今日も一歩ずつ、目標に近づこう！💪"
+              : currentUser.role === UserRole.TUTOR
+                ? "生徒の成長を一緒に支えましょう"
+                : "お子さまの学習状況をチェック"}
+          </p>
         </div>
-        {currentUser.role !== UserRole.GUARDIAN && (
-          <Link to="/lessons/l1" className="w-full md:w-auto text-center bg-indigo-600 text-white px-8 py-4 rounded-lg font-bold hover:bg-indigo-700 transition shadow-sm shrink-0">
-            {currentUser.role === UserRole.TUTOR ? "授業を開始" : "予習をする"}
-          </Link>
-        )}
       </div>
 
-      {/* Tasks / Homework */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <CheckCircleIcon className="w-4 h-4" /> 今日やること
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Stats Cards Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Study Hours Card */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200 group-hover:scale-110 transition-transform">
+              <ClockIcon className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-gray-400 font-medium">今週</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{stats.studyHours}<span className="text-sm font-normal text-gray-500 ml-1">時間</span></p>
+          <p className="text-xs text-gray-500 mt-1">学習時間</p>
+        </div>
+
+        {/* Problems Solved Card */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-green-200 group-hover:scale-110 transition-transform">
+              <CheckCircleIcon className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-gray-400 font-medium">今週</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{stats.problemsSolved}<span className="text-sm font-normal text-gray-500 ml-1">問</span></p>
+          <p className="text-xs text-gray-500 mt-1">解いた問題数</p>
+        </div>
+
+        {/* Streak Card */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-200 group-hover:scale-110 transition-transform">
+              <span className="text-lg">🔥</span>
+            </div>
+            <span className="text-xs text-gray-400 font-medium">連続記録</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{stats.streak}<span className="text-sm font-normal text-gray-500 ml-1">日</span></p>
+          <p className="text-xs text-gray-500 mt-1">学習ストリーク</p>
+        </div>
+
+        {/* Days to Exam Card */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-purple-200 group-hover:scale-110 transition-transform">
+              <FlagIcon className="w-5 h-5" />
+            </div>
+            <span className="text-xs text-gray-400 font-medium">次の試験</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">
+            {stats.daysToExam !== null ? (
+              <>{stats.daysToExam}<span className="text-sm font-normal text-gray-500 ml-1">日後</span></>
+            ) : (
+              <span className="text-sm font-normal text-gray-400">未設定</span>
+            )}
+          </p>
+          <p className="text-xs text-gray-500 mt-1 truncate">{nextExam?.title || '試験予定なし'}</p>
+        </div>
+      </div>
+
+      {/* Progress & Next Lesson Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Homework Progress */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <SparklesIcon className="w-4 h-4 text-purple-500" /> 宿題進捗
+          </h3>
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-gray-600">完了率</span>
+              <span className="text-lg font-bold text-gray-900">{completionRate}%</span>
+            </div>
+            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full transition-all duration-500"
+                style={{ width: `${completionRate}%` }}
+              ></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">{completedHomework.length} / {totalHomework} 完了</p>
+          </div>
+
+          {/* Pending items */}
           {homeworkItems.length > 0 ? (
-            homeworkItems.map((hw, i) => (
-              <div key={i} className="flex items-center justify-between p-4 rounded-lg border border-orange-100 bg-orange-50">
-                <div>
-                  <p className="font-bold text-gray-900">{hw.title}</p>
-                  <p className="text-xs text-gray-600 mt-0.5">{hw.type} • 約{hw.estimated_minutes}分</p>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {homeworkItems.slice(0, 3).map((hw, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-orange-200 rounded-lg flex items-center justify-center text-orange-700 text-sm font-bold">
+                      {i + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900 text-sm">{hw.title}</p>
+                      <p className="text-xs text-gray-500">約{hw.estimated_minutes}分</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-orange-600">あと{hw.due_days_from_now}日</span>
                 </div>
-                <div className="text-xs font-bold text-orange-600 bg-white px-3 py-1 rounded-full border border-orange-200 shadow-sm">
-                  あと{hw.due_days_from_now}日
-                </div>
-              </div>
-            ))
+              ))}
+            </div>
           ) : (
-            <p className="col-span-2 text-gray-500 italic p-4 text-center bg-gray-50 rounded-lg">未完了のタスクはありません 🎉</p>
+            <div className="text-center py-4 bg-green-50 rounded-xl">
+              <span className="text-2xl">🎉</span>
+              <p className="text-sm text-green-700 font-medium mt-1">全て完了！</p>
+            </div>
+          )}
+        </div>
+
+        {/* Next Lesson Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <CalendarIcon className="w-4 h-4 text-blue-500" /> 次回の授業
+          </h3>
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex flex-col items-center justify-center">
+              <span className="text-xs text-indigo-600 font-medium">12月</span>
+              <span className="text-2xl font-bold text-indigo-900">17</span>
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900">水曜日</p>
+              <p className="text-indigo-600 font-medium">18:30 - 20:30</p>
+              <p className="text-xs text-gray-500">120分授業</p>
+            </div>
+          </div>
+          {currentUser.role !== UserRole.GUARDIAN && (
+            <Link
+              to="/lessons/l1"
+              className="block w-full text-center bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4 rounded-xl font-bold hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-200"
+            >
+              {currentUser.role === UserRole.TUTOR ? "授業を開始 →" : "予習をする →"}
+            </Link>
           )}
         </div>
       </div>
 
       {/* Event Countdown */}
-      <div>
-        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <ClockIcon className="w-5 h-5 text-gray-500" /> 直近の重要イベント
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <ClockIcon className="w-4 h-4 text-red-500" /> 直近の重要イベント
         </h3>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 divide-y divide-gray-100">
-          {upcomingEvents.length === 0 ? (
-            <div className="p-8 text-gray-500 text-center">予定はありません</div>
-          ) : (
-            upcomingEvents.map((evt) => (
-              <div key={`${evt.schoolId}-${evt.id}`} className="p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+        {upcomingEvents.length === 0 ? (
+          <div className="py-8 text-center text-gray-400">
+            <span className="text-3xl block mb-2">📅</span>
+            予定されているイベントはありません
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {upcomingEvents.map((evt) => (
+              <div
+                key={`${evt.schoolId}-${evt.id}`}
+                className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group"
+              >
                 <div className="flex items-center gap-4">
-                  <div className="text-center w-14 shrink-0">
-                    <span className="block text-sm font-bold text-gray-500">{DateUtils.formatDate(evt.date).split('(')[0]}</span>
-                    <span className="block text-xs text-gray-400">{evt.isAllDay ? '終日' : DateUtils.formatTime(evt.date)}</span>
+                  <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex flex-col items-center justify-center group-hover:shadow-md transition-shadow">
+                    <span className="text-xs text-gray-500">{DateUtils.formatDate(evt.date).split('/')[0]}</span>
+                    <span className="text-lg font-bold text-gray-900">{DateUtils.formatDate(evt.date).split('/')[1]?.split('(')[0]}</span>
                   </div>
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{evt.schoolName}</span>
-                    </div>
-                    <p className="text-base font-bold text-gray-900">{evt.title}</p>
+                    <span className="text-xs font-medium text-gray-500 bg-gray-200 px-2 py-0.5 rounded">{evt.schoolName}</span>
+                    <p className="font-bold text-gray-900 mt-1">{evt.title}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className={`text-2xl font-bold leading-none ${evt.days <= 0 ? 'text-orange-600' : evt.days <= 7 ? 'text-red-600' : 'text-indigo-600'}`}>
-                    {DateUtils.formatDaysRemaining(evt.days)}
-                  </p>
+                <div className={`text-right px-4 py-2 rounded-xl font-bold ${evt.days <= 0 ? 'bg-orange-100 text-orange-700' :
+                  evt.days <= 7 ? 'bg-red-100 text-red-700' :
+                    'bg-indigo-100 text-indigo-700'
+                  }`}>
+                  {DateUtils.formatDaysRemaining(evt.days)}
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
 
 // --- Main App ---
 export default function App() {
