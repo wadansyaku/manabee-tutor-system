@@ -1,25 +1,38 @@
 // Admin Service - Client-side wrapper for admin Cloud Functions
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
+// All Firebase imports are dynamic to prevent page load crashes
 import { User, UserRole } from '../types';
-import { isFirebaseConfigured } from './firebaseService';
 
-// Initialize Functions (lazy)
-let functionsInstance: ReturnType<typeof getFunctions> | null = null;
+// Check if Firebase mode is enabled (no SDK import)
+const checkFirebaseMode = (): boolean => {
+    try {
+        return import.meta.env.VITE_APP_MODE === 'firebase' && !!import.meta.env.VITE_FIREBASE_API_KEY;
+    } catch {
+        return false;
+    }
+};
 
-const getFunctionsInstance = () => {
+// Firebase Functions instance - lazy loaded
+let functionsInstance: any = null;
+
+const getFunctionsInstance = async () => {
     if (functionsInstance) return functionsInstance;
 
-    if (!isFirebaseConfigured()) {
+    if (!checkFirebaseMode()) {
         throw new Error('Firebase must be configured to use Cloud Functions');
     }
 
-    // Dynamic import to avoid issues when Firebase not configured
-    const { getApp } = require('firebase/app');
-    functionsInstance = getFunctions(getApp(), 'asia-northeast1'); // Tokyo region
+    // Dynamic imports
+    const [firebaseApp, firebaseFunctions] = await Promise.all([
+        import('firebase/app'),
+        import('firebase/functions')
+    ]);
+
+    const app = firebaseApp.getApp();
+    functionsInstance = firebaseFunctions.getFunctions(app, 'us-central1');
 
     // Connect to emulator in development
     if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === 'true') {
-        connectFunctionsEmulator(functionsInstance, 'localhost', 5001);
+        firebaseFunctions.connectFunctionsEmulator(functionsInstance, 'localhost', 5001);
     }
 
     return functionsInstance;
@@ -64,14 +77,14 @@ export interface LessonContentResult {
 
 /**
  * Generate lesson content using Cloud Functions
- * Secure server-side AI generation with rate limiting
  */
 export const generateLessonContentCloud = async (
     transcript: string,
     studentContext: string
 ): Promise<LessonContentResult> => {
-    const functions = getFunctionsInstance();
-    const generateFn = httpsCallable<
+    const functions = await getFunctionsInstance();
+    const firebaseFunctions = await import('firebase/functions');
+    const generateFn = firebaseFunctions.httpsCallable<
         { transcript: string; studentContext: string },
         LessonContentResult
     >(functions, 'generateLessonContent');
@@ -84,8 +97,9 @@ export const generateLessonContentCloud = async (
  * Get usage statistics (Admin only)
  */
 export const getUsageStats = async (timeRange: '7d' | '30d' = '7d'): Promise<UsageStats> => {
-    const functions = getFunctionsInstance();
-    const getStatsFn = httpsCallable<{ timeRange: string }, UsageStats>(
+    const functions = await getFunctionsInstance();
+    const firebaseFunctions = await import('firebase/functions');
+    const getStatsFn = firebaseFunctions.httpsCallable<{ timeRange: string }, UsageStats>(
         functions,
         'getUsageStats'
     );
@@ -98,8 +112,9 @@ export const getUsageStats = async (timeRange: '7d' | '30d' = '7d'): Promise<Usa
  * List all users (Admin only)
  */
 export const listAllUsers = async (): Promise<User[]> => {
-    const functions = getFunctionsInstance();
-    const listUsersFn = httpsCallable<void, User[]>(functions, 'listAllUsers');
+    const functions = await getFunctionsInstance();
+    const firebaseFunctions = await import('firebase/functions');
+    const listUsersFn = firebaseFunctions.httpsCallable<void, User[]>(functions, 'listAllUsers');
 
     const result = await listUsersFn();
     return result.data;
@@ -112,8 +127,9 @@ export const updateUserCloud = async (
     userId: string,
     updates: Partial<User>
 ): Promise<{ success: boolean }> => {
-    const functions = getFunctionsInstance();
-    const updateFn = httpsCallable<
+    const functions = await getFunctionsInstance();
+    const firebaseFunctions = await import('firebase/functions');
+    const updateFn = firebaseFunctions.httpsCallable<
         { userId: string; updates: Partial<User> },
         { success: boolean }
     >(functions, 'updateUser');
@@ -126,7 +142,7 @@ export const updateUserCloud = async (
  * Check if Cloud Functions are available
  */
 export const isCloudFunctionsEnabled = (): boolean => {
-    return isFirebaseConfigured() &&
+    return checkFirebaseMode() &&
         import.meta.env.VITE_USE_CLOUD_FUNCTIONS === 'true';
 };
 

@@ -1,44 +1,21 @@
-// Firebase initialization and service
-import { initializeApp, FirebaseApp } from 'firebase/app';
-import {
-    getAuth,
-    Auth,
-    signInWithEmailAndPassword,
-    signOut as firebaseSignOut,
-    onAuthStateChanged,
-    User as FirebaseUser
-} from 'firebase/auth';
-import {
-    getFirestore,
-    Firestore,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    setDoc,
-    updateDoc,
-    deleteDoc,
-    query,
-    where,
-    orderBy
-} from 'firebase/firestore';
+// Firebase initialization and service - LAZY LOADING VERSION
+// All Firebase SDK imports are dynamic to prevent page load crashes
+
 import { StudentSchool, AuditLog, User, Lesson, QuestionJob, UserRole } from '../types';
 
-// Firebase config - will be loaded from environment or config file
-let firebaseConfig: any = null;
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let db: Firestore | null = null;
+// Firebase instances - lazy loaded
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+let firebaseModulesLoaded = false;
 
-// Check if Firebase is configured AND enabled
+// Check if Firebase is configured AND enabled (no SDK import needed)
 export function isFirebaseConfigured(): boolean {
     try {
-        // First check if Firebase mode is explicitly enabled
         const appMode = import.meta.env.VITE_APP_MODE;
         if (appMode !== 'firebase') {
             return false;
         }
-        // Then check if API key is provided
         if (import.meta.env.VITE_FIREBASE_API_KEY) {
             return true;
         }
@@ -48,15 +25,24 @@ export function isFirebaseConfigured(): boolean {
     }
 }
 
-// Initialize Firebase (lazy)
-const initializeFirebase = () => {
-    if (app) return { app, auth: auth!, db: db! };
-
-    if (!isFirebaseConfigured()) {
-        throw new Error('Firebase is not configured. Please set up firebase.config.ts');
+// Lazy load Firebase SDK modules
+const loadFirebaseModules = async () => {
+    if (firebaseModulesLoaded && app && auth && db) {
+        return { app, auth, db };
     }
 
-    firebaseConfig = {
+    if (!isFirebaseConfigured()) {
+        throw new Error('Firebase is not configured. Please set VITE_APP_MODE=firebase');
+    }
+
+    // Dynamic imports - only load when actually needed
+    const [firebaseApp, firebaseAuth, firebaseFirestore] = await Promise.all([
+        import('firebase/app'),
+        import('firebase/auth'),
+        import('firebase/firestore')
+    ]);
+
+    const firebaseConfig = {
         apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
         authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
         projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -65,9 +51,10 @@ const initializeFirebase = () => {
         appId: import.meta.env.VITE_FIREBASE_APP_ID
     };
 
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
+    app = firebaseApp.initializeApp(firebaseConfig);
+    auth = firebaseAuth.getAuth(app);
+    db = firebaseFirestore.getFirestore(app);
+    firebaseModulesLoaded = true;
 
     return { app, auth, db };
 };
@@ -75,12 +62,16 @@ const initializeFirebase = () => {
 // Auth functions
 export const firebaseLogin = async (email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> => {
     try {
-        const { auth } = initializeFirebase();
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const { auth, db } = await loadFirebaseModules();
+        const firebaseAuth = await import('firebase/auth');
+        const firebaseFirestore = await import('firebase/firestore');
+
+        const userCredential = await firebaseAuth.signInWithEmailAndPassword(auth, email, password);
 
         // Get user profile from Firestore
-        const { db } = initializeFirebase();
-        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        const userDoc = await firebaseFirestore.getDoc(
+            firebaseFirestore.doc(db, 'users', userCredential.user.uid)
+        );
 
         if (userDoc.exists()) {
             const userData = userDoc.data() as User;
@@ -91,9 +82,12 @@ export const firebaseLogin = async (email: string, password: string): Promise<{ 
                 id: userCredential.user.uid,
                 name: userCredential.user.email?.split('@')[0] || 'User',
                 email: userCredential.user.email || '',
-                role: UserRole.STUDENT // Default role
+                role: UserRole.STUDENT
             };
-            await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
+            await firebaseFirestore.setDoc(
+                firebaseFirestore.doc(db, 'users', userCredential.user.uid),
+                newUser
+            );
             return { success: true, user: newUser };
         }
     } catch (error: any) {
@@ -101,41 +95,55 @@ export const firebaseLogin = async (email: string, password: string): Promise<{ 
             success: false,
             error: error.code === 'auth/wrong-password' ? 'パスワードが違います' :
                 error.code === 'auth/user-not-found' ? 'ユーザーが見つかりません' :
-                    error.message
+                    error.code === 'auth/invalid-credential' ? 'メールアドレスまたはパスワードが間違っています' :
+                        error.message
         };
     }
 };
 
 export const firebaseLogout = async () => {
-    const { auth } = initializeFirebase();
-    await firebaseSignOut(auth);
+    const { auth } = await loadFirebaseModules();
+    const firebaseAuth = await import('firebase/auth');
+    await firebaseAuth.signOut(auth);
 };
 
 // Listen to auth state changes
-export const onAuthChange = (callback: (user: FirebaseUser | null) => void) => {
-    const { auth } = initializeFirebase();
-    return onAuthStateChanged(auth, callback);
+export const onAuthChange = async (callback: (user: any | null) => void) => {
+    const { auth } = await loadFirebaseModules();
+    const firebaseAuth = await import('firebase/auth');
+    return firebaseAuth.onAuthStateChanged(auth, callback);
+};
+
+// Get user from Firestore
+export const getUser = async (userId: string): Promise<User | null> => {
+    const { db } = await loadFirebaseModules();
+    const firebaseFirestore = await import('firebase/firestore');
+    const docSnap = await firebaseFirestore.getDoc(
+        firebaseFirestore.doc(db, 'users', userId)
+    );
+    return docSnap.exists() ? docSnap.data() as User : null;
+};
+
+// Update user in Firestore
+export const updateUser = async (userId: string, data: Partial<User>): Promise<void> => {
+    const { db } = await loadFirebaseModules();
+    const firebaseFirestore = await import('firebase/firestore');
+    await firebaseFirestore.updateDoc(
+        firebaseFirestore.doc(db, 'users', userId),
+        data
+    );
 };
 
 // Firestore CRUD operations
 export const firestoreOperations = {
-    // Users
-    async getUser(userId: string): Promise<User | null> {
-        const { db } = initializeFirebase();
-        const docSnap = await getDoc(doc(db, 'users', userId));
-        return docSnap.exists() ? docSnap.data() as User : null;
-    },
+    getUser,
+    updateUser,
 
-    async updateUser(userId: string, data: Partial<User>): Promise<void> {
-        const { db } = initializeFirebase();
-        await updateDoc(doc(db, 'users', userId), data);
-    },
-
-    // Schools
     async getSchools(studentId: string): Promise<StudentSchool[]> {
-        const { db } = initializeFirebase();
-        const q = query(collection(db, 'schools'), where('studentId', '==', studentId));
-        const snapshot = await getDocs(q);
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        const q = fs.query(fs.collection(db, 'schools'), fs.where('studentId', '==', studentId));
+        const snapshot = await fs.getDocs(q);
         return snapshot.docs.map(d => {
             const data = d.data() as Record<string, unknown>;
             return { id: d.id, ...data } as StudentSchool;
@@ -143,37 +151,40 @@ export const firestoreOperations = {
     },
 
     async saveSchool(school: StudentSchool): Promise<void> {
-        const { db } = initializeFirebase();
-        await setDoc(doc(db, 'schools', school.id), school);
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        await fs.setDoc(fs.doc(db, 'schools', school.id), school);
     },
 
     async deleteSchool(schoolId: string): Promise<void> {
-        const { db } = initializeFirebase();
-        await deleteDoc(doc(db, 'schools', schoolId));
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        await fs.deleteDoc(fs.doc(db, 'schools', schoolId));
     },
 
-    // Lessons
     async getLesson(lessonId: string): Promise<Lesson | null> {
-        const { db } = initializeFirebase();
-        const docSnap = await getDoc(doc(db, 'lessons', lessonId));
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        const docSnap = await fs.getDoc(fs.doc(db, 'lessons', lessonId));
         return docSnap.exists() ? docSnap.data() as Lesson : null;
     },
 
     async saveLesson(lesson: Lesson): Promise<void> {
-        const { db } = initializeFirebase();
-        await setDoc(doc(db, 'lessons', lesson.id), lesson);
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        await fs.setDoc(fs.doc(db, 'lessons', lesson.id), lesson);
     },
 
-    // Questions
     async getQuestions(studentId?: string): Promise<QuestionJob[]> {
-        const { db } = initializeFirebase();
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
         let q;
         if (studentId) {
-            q = query(collection(db, 'questions'), where('studentId', '==', studentId), orderBy('createdAt', 'desc'));
+            q = fs.query(fs.collection(db, 'questions'), fs.where('studentId', '==', studentId), fs.orderBy('createdAt', 'desc'));
         } else {
-            q = query(collection(db, 'questions'), orderBy('createdAt', 'desc'));
+            q = fs.query(fs.collection(db, 'questions'), fs.orderBy('createdAt', 'desc'));
         }
-        const snapshot = await getDocs(q);
+        const snapshot = await fs.getDocs(q);
         return snapshot.docs.map(d => {
             const data = d.data() as Record<string, unknown>;
             return { id: d.id, ...data } as QuestionJob;
@@ -181,20 +192,22 @@ export const firestoreOperations = {
     },
 
     async saveQuestion(question: QuestionJob): Promise<void> {
-        const { db } = initializeFirebase();
-        await setDoc(doc(db, 'questions', question.id), question);
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        await fs.setDoc(fs.doc(db, 'questions', question.id), question);
     },
 
-    // Audit Logs
     async addAuditLog(log: AuditLog): Promise<void> {
-        const { db } = initializeFirebase();
-        await setDoc(doc(db, 'audit_logs', log.id), log);
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        await fs.setDoc(fs.doc(db, 'audit_logs', log.id), log);
     },
 
     async getAuditLogs(limit: number = 100): Promise<AuditLog[]> {
-        const { db } = initializeFirebase();
-        const q = query(collection(db, 'audit_logs'), orderBy('at', 'desc'));
-        const snapshot = await getDocs(q);
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        const q = fs.query(fs.collection(db, 'audit_logs'), fs.orderBy('at', 'desc'));
+        const snapshot = await fs.getDocs(q);
         return snapshot.docs.slice(0, limit).map(d => d.data() as AuditLog);
     }
 };
@@ -204,8 +217,8 @@ export default {
     firebaseLogin,
     firebaseLogout,
     onAuthChange,
-    getUser: firestoreOperations.getUser,
-    updateUser: firestoreOperations.updateUser,
+    getUser,
+    updateUser,
     getSchools: firestoreOperations.getSchools,
     saveSchool: firestoreOperations.saveSchool,
     deleteSchool: firestoreOperations.deleteSchool,

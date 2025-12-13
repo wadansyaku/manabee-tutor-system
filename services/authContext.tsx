@@ -1,8 +1,17 @@
 // Auth Context for Firebase and Local authentication
+// Uses dynamic imports to avoid page load crashes
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, UserRole } from '../types';
 import { StorageService } from './storageService';
-import firebaseService, { isFirebaseConfigured } from './firebaseService';
+
+// Check Firebase mode without importing SDK
+const checkFirebaseMode = (): boolean => {
+    try {
+        return import.meta.env.VITE_APP_MODE === 'firebase' && !!import.meta.env.VITE_FIREBASE_API_KEY;
+    } catch {
+        return false;
+    }
+};
 
 // Auth state interface
 interface AuthState {
@@ -29,8 +38,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isFirebaseMode: false,
     });
 
-    // Check if Firebase is configured
-    const isFirebase = isFirebaseConfigured();
+    // Check if Firebase is configured (no SDK import)
+    const isFirebase = checkFirebaseMode();
 
     // Initialize auth state
     useEffect(() => {
@@ -40,7 +49,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setState(prev => ({ ...prev, isFirebaseMode: true }));
 
                 try {
-                    firebaseService.onAuthChange(async (firebaseUser) => {
+                    // Dynamic import of firebase service
+                    const firebaseService = await import('./firebaseService');
+
+                    await firebaseService.onAuthChange(async (firebaseUser: any) => {
                         if (firebaseUser) {
                             // Get user profile from Firestore
                             const userProfile = await firebaseService.getUser(firebaseUser.uid);
@@ -76,15 +88,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Login function
     const login = useCallback(async (email: string, password?: string): Promise<{ success: boolean; user?: User; error?: string }> => {
         if (state.isFirebaseMode) {
-            // Firebase login
+            // Firebase login - dynamic import
             if (!password) {
                 return { success: false, error: 'パスワードを入力してください' };
             }
-            const result = await firebaseService.firebaseLogin(email, password);
-            if (result.success && result.user) {
-                setState(prev => ({ ...prev, user: result.user! }));
+            try {
+                const firebaseService = await import('./firebaseService');
+                const result = await firebaseService.firebaseLogin(email, password);
+                if (result.success && result.user) {
+                    setState(prev => ({ ...prev, user: result.user! }));
+                }
+                return result;
+            } catch (error: any) {
+                return { success: false, error: error.message || 'Firebase login failed' };
             }
-            return result;
         } else {
             // Local login
             const result = StorageService.login(email, password);
@@ -98,7 +115,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Logout function
     const logout = useCallback(async () => {
         if (state.isFirebaseMode) {
-            await firebaseService.firebaseLogout();
+            try {
+                const firebaseService = await import('./firebaseService');
+                await firebaseService.firebaseLogout();
+            } catch (error) {
+                console.error('Firebase logout failed:', error);
+            }
         }
         setState(prev => ({ ...prev, user: null }));
     }, [state.isFirebaseMode]);
@@ -107,8 +129,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const changePassword = useCallback(async (userId: string, newPassword: string): Promise<boolean> => {
         if (state.isFirebaseMode) {
             // Firebase password change would require reauthentication
-            // For now, just update user profile to mark as changed
             try {
+                const firebaseService = await import('./firebaseService');
                 await firebaseService.updateUser(userId, { isInitialPassword: false });
                 return true;
             } catch {
@@ -122,9 +144,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Refresh user data
     const refreshUser = useCallback(async () => {
         if (state.isFirebaseMode && state.user) {
-            const userProfile = await firebaseService.getUser(state.user.id);
-            if (userProfile) {
-                setState(prev => ({ ...prev, user: userProfile }));
+            try {
+                const firebaseService = await import('./firebaseService');
+                const userProfile = await firebaseService.getUser(state.user.id);
+                if (userProfile) {
+                    setState(prev => ({ ...prev, user: userProfile }));
+                }
+            } catch (error) {
+                console.error('Failed to refresh user:', error);
             }
         }
     }, [state.isFirebaseMode, state.user]);

@@ -1,8 +1,17 @@
 // Homework Firestore Service
+// All Firebase imports are dynamic to prevent page load crashes
 import { HomeworkItem, Lesson } from '../types';
 import { StorageService, DateUtils } from './storageService';
-import firebaseService, { isFirebaseConfigured, firestoreOperations } from './firebaseService';
 import { resolveDueDate } from './homeworkUtils';
+
+// Check if Firebase mode is enabled (no SDK import)
+const checkFirebaseMode = (): boolean => {
+    try {
+        return import.meta.env.VITE_APP_MODE === 'firebase' && !!import.meta.env.VITE_FIREBASE_API_KEY;
+    } catch {
+        return false;
+    }
+};
 
 // Homework service interface
 interface HomeworkService {
@@ -64,17 +73,24 @@ class LocalHomeworkService implements HomeworkService {
     }
 }
 
-// Firebase implementation
+// Firebase implementation - uses dynamic import
 class FirebaseHomeworkService implements HomeworkService {
+    private async getFirestoreOps() {
+        const firebaseService = await import('./firebaseService');
+        return firebaseService.firestoreOperations;
+    }
+
     async loadHomework(lessonId: string): Promise<HomeworkItem[]> {
-        const lesson = await firestoreOperations.getLesson(lessonId);
+        const ops = await this.getFirestoreOps();
+        const lesson = await ops.getLesson(lessonId);
         return lesson?.aiHomework?.items ?? [];
     }
 
     async saveHomework(lessonId: string, items: HomeworkItem[]): Promise<void> {
-        const lesson = await firestoreOperations.getLesson(lessonId);
+        const ops = await this.getFirestoreOps();
+        const lesson = await ops.getLesson(lessonId);
         if (lesson) {
-            await firestoreOperations.saveLesson({ ...lesson, aiHomework: { items } });
+            await ops.saveLesson({ ...lesson, aiHomework: { items } });
         }
     }
 
@@ -92,7 +108,8 @@ class FirebaseHomeworkService implements HomeworkService {
         });
 
         const updated = { ...lesson, aiHomework: { items: updatedItems } };
-        await firestoreOperations.saveLesson(updated);
+        const ops = await this.getFirestoreOps();
+        await ops.saveLesson(updated);
         return updated;
     }
 
@@ -102,7 +119,8 @@ class FirebaseHomeworkService implements HomeworkService {
             ...lesson,
             aiHomework: { items: [item, ...existing] },
         };
-        await firestoreOperations.saveLesson(updated);
+        const ops = await this.getFirestoreOps();
+        await ops.saveLesson(updated);
         return updated;
     }
 
@@ -111,13 +129,14 @@ class FirebaseHomeworkService implements HomeworkService {
 
         const updatedItems = lesson.aiHomework.items.filter((item) => (item.id || '') !== itemId);
         const updated = { ...lesson, aiHomework: { items: updatedItems } };
-        await firestoreOperations.saveLesson(updated);
+        const ops = await this.getFirestoreOps();
+        await ops.saveLesson(updated);
         return updated;
     }
 }
 
 // Export singleton based on configuration
-const isFirebase = isFirebaseConfigured();
+const isFirebase = checkFirebaseMode();
 export const homeworkService: HomeworkService = isFirebase
     ? new FirebaseHomeworkService()
     : new LocalHomeworkService();
