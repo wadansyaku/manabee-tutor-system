@@ -12,6 +12,10 @@ import { HomeworkList } from './components/HomeworkList';
 import { ExamScoreManager } from './components/ExamScoreManager';
 import { StudentSelector, StudentSelectorCompact, MOCK_STUDENTS } from './components/StudentSelector';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './components/icons';
+// Admin Components
+import { UserManagement } from './components/admin/UserManagement';
+import { SystemSettings } from './components/admin/SystemSettings';
+import { UsageMonitor } from './components/admin/UsageMonitor';
 
 // --- Login Screen ---
 const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void }) => {
@@ -329,6 +333,19 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
     }
 
     // Guardian / Admin
+    if (currentUser.role === UserRole.ADMIN) {
+      return [
+        ...common,
+        { name: 'ユーザー管理', path: '/admin/users' },
+        { name: 'システム設定', path: '/admin/settings' },
+        { name: '使用状況', path: '/admin/usage' },
+        { name: '宿題', path: '/homework' },
+        { name: '成績', path: '/scores' },
+        { name: '受験校', path: '/schools' },
+      ];
+    }
+
+    // Guardian only
     return [
       ...common,
       { name: '宿題', path: '/homework' },
@@ -610,6 +627,32 @@ export default function App() {
               onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
               studentId={selectedStudentId}
             />
+          } />
+
+          {/* Admin Routes */}
+          <Route path="/admin/users" element={
+            effectiveUser.role === UserRole.ADMIN ? (
+              <UserManagement
+                currentUser={effectiveUser}
+                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+              />
+            ) : <Navigate to="/" replace />
+          } />
+          <Route path="/admin/settings" element={
+            effectiveUser.role === UserRole.ADMIN ? (
+              <SystemSettings
+                currentUser={effectiveUser}
+                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+              />
+            ) : <Navigate to="/" replace />
+          } />
+          <Route path="/admin/usage" element={
+            effectiveUser.role === UserRole.ADMIN ? (
+              <UsageMonitor
+                currentUser={effectiveUser}
+                logs={logs}
+              />
+            ) : <Navigate to="/" replace />
           } />
 
           {/* Fallback for old routes or mis-navigation */}
