@@ -2,7 +2,6 @@
 // A web-based tool to seed initial data into Firestore (Admin only)
 import React, { useState } from 'react';
 import { User, UserRole } from '../../types';
-import { isFirebaseConfigured } from '../../services/firebaseService';
 
 interface DatabaseSeederProps {
     currentUser: User;
@@ -55,6 +54,15 @@ const SEED_USERS = [
     }
 ];
 
+// Check if Firebase mode is enabled without importing the full service
+const isFirebaseMode = () => {
+    try {
+        return import.meta.env.VITE_APP_MODE === 'firebase' && !!import.meta.env.VITE_FIREBASE_API_KEY;
+    } catch {
+        return false;
+    }
+};
+
 export const DatabaseSeeder: React.FC<DatabaseSeederProps> = ({ currentUser, onAudit }) => {
     const [status, setStatus] = useState<'idle' | 'seeding' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');
@@ -65,7 +73,7 @@ export const DatabaseSeeder: React.FC<DatabaseSeederProps> = ({ currentUser, onA
     };
 
     const handleSeed = async () => {
-        if (!isFirebaseConfigured()) {
+        if (!isFirebaseMode()) {
             setStatus('error');
             setMessage('Firebase is not configured. Please set up Firebase first.');
             return;
@@ -171,12 +179,12 @@ export const DatabaseSeeder: React.FC<DatabaseSeederProps> = ({ currentUser, onA
             {/* Status */}
             {status !== 'idle' && (
                 <div className={`rounded-2xl p-4 ${status === 'seeding' ? 'bg-blue-50 border border-blue-200' :
-                        status === 'success' ? 'bg-green-50 border border-green-200' :
-                            'bg-red-50 border border-red-200'
+                    status === 'success' ? 'bg-green-50 border border-green-200' :
+                        'bg-red-50 border border-red-200'
                     }`}>
                     <p className={`font-semibold ${status === 'seeding' ? 'text-blue-700' :
-                            status === 'success' ? 'text-green-700' :
-                                'text-red-700'
+                        status === 'success' ? 'text-green-700' :
+                            'text-red-700'
                         }`}>
                         {status === 'seeding' ? '⏳ 処理中...' :
                             status === 'success' ? '✅ 成功' :
@@ -200,9 +208,9 @@ export const DatabaseSeeder: React.FC<DatabaseSeederProps> = ({ currentUser, onA
                                 <p className="text-xs text-gray-500">{user.email}</p>
                             </div>
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' :
-                                    user.role === 'TUTOR' ? 'bg-blue-100 text-blue-700' :
-                                        user.role === 'GUARDIAN' ? 'bg-pink-100 text-pink-700' :
-                                            'bg-green-100 text-green-700'
+                                user.role === 'TUTOR' ? 'bg-blue-100 text-blue-700' :
+                                    user.role === 'GUARDIAN' ? 'bg-pink-100 text-pink-700' :
+                                        'bg-green-100 text-green-700'
                                 }`}>
                                 {user.role}
                             </span>
@@ -237,8 +245,8 @@ export const DatabaseSeeder: React.FC<DatabaseSeederProps> = ({ currentUser, onA
                     onClick={handleSeed}
                     disabled={status === 'seeding'}
                     className={`flex-1 py-4 rounded-xl font-semibold text-lg transition ${status === 'seeding'
-                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
                         }`}
                 >
                     {status === 'seeding' ? '処理中...' : '🚀 データベース初期化を実行'}
