@@ -5,6 +5,7 @@ import { DateUtils } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { getHomeworkMeta } from '../services/homeworkUtils';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './icons';
+import { MOCK_STUDENTS } from './StudentSelector';
 
 interface DashboardProps {
     currentUser: User;
@@ -12,6 +13,7 @@ interface DashboardProps {
     lesson: Lesson;
     logs: AuditLog[];
     questions?: QuestionJob[];
+    studentId?: string; // For Guardian multi-child support
 }
 
 // Shared utilities
@@ -208,15 +210,20 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
 
 // ===== GUARDIAN DASHBOARD =====
 // Goal: Quick overview of child's progress, peace of mind
-const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson }) => {
+const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson, studentId }) => {
     const upcomingEvents = getUpcomingEvents(schools);
     const homeworkItems = lesson.aiHomework?.items || [];
     const completedHomework = homeworkItems.filter(h => h.isCompleted);
     const completionRate = homeworkItems.length > 0 ? Math.round((completedHomework.length / homeworkItems.length) * 100) : 0;
 
-    // Mock child data
+    // Get selected child info from MOCK_STUDENTS
+    const selectedChild = MOCK_STUDENTS.find(s => s.id === studentId) || MOCK_STUDENTS[0];
+    const childDisplayName = selectedChild?.name || 'お子様';
+    // Determine suffix based on name (simple heuristic)
+    const nameSuffix = selectedChild?.name?.endsWith('子') ? 'ちゃん' : 'くん';
+
+    // Mock child stats (would be per-child in real implementation)
     const childStats = {
-        name: 'たけし',
         lastStudy: '2時間前',
         weeklyHours: 12.5,
         weeklyProblems: 47,
@@ -229,11 +236,11 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
             <div className="bg-gradient-to-r from-rose-500 to-orange-400 rounded-3xl p-6 text-white shadow-xl">
                 <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center text-2xl">
-                        👪
+                        {selectedChild?.avatar || '👪'}
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold">こんにちは、{currentUser.name}さん</h1>
-                        <p className="text-white/90">{childStats.name}くんの学習状況をお伝えします</p>
+                        <p className="text-white/90">{childDisplayName}{nameSuffix}の学習状況をお伝えします</p>
                     </div>
                 </div>
             </div>

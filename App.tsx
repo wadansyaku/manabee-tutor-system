@@ -10,6 +10,7 @@ import { QuestionBoard } from './components/QuestionBoard';
 import { Dashboard } from './components/Dashboard';
 import { HomeworkList } from './components/HomeworkList';
 import { ExamScoreManager } from './components/ExamScoreManager';
+import { StudentSelector, StudentSelectorCompact, MOCK_STUDENTS } from './components/StudentSelector';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './components/icons';
 
 // --- Login Screen ---
@@ -444,22 +445,49 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [viewAsStudent, setViewAsStudent] = useState(false); // For Guardian preview
+  // Multi-child support: persist selected student in localStorage
+  const [selectedStudentId, setSelectedStudentId] = useState(
+    () => localStorage.getItem('manabee_selected_student') || 's1'
+  );
   const [lesson, setLesson] = useState<Lesson>(MOCK_LESSON);
   const [schools, setSchools] = useState<StudentSchool[]>([]);
   const [questions, setQuestions] = useState<QuestionJob[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
-  // Data Loading
-  const refreshData = () => {
-    setSchools(StorageService.loadSchools());
+  // Data Loading with optional studentId filtering for multi-child support
+  const refreshData = (studentId?: string) => {
+    const targetStudentId = studentId || selectedStudentId;
+    const allSchools = StorageService.loadSchools();
+    const allQuestions = StorageService.loadQuestions();
+
+    // For Guardians, filter data by selected child
+    if (user?.role === UserRole.GUARDIAN) {
+      setSchools(allSchools.filter(s => s.studentId === targetStudentId));
+      setQuestions(allQuestions.filter(q => q.studentId === targetStudentId));
+    } else {
+      setSchools(allSchools);
+      setQuestions(allQuestions);
+    }
     setLesson(StorageService.loadLesson());
     setLogs(StorageService.loadLogs());
-    setQuestions(StorageService.loadQuestions());
   };
 
   useEffect(() => {
     refreshData();
   }, []);
+
+  // Refresh data when selected student changes (for Guardians)
+  useEffect(() => {
+    if (user?.role === UserRole.GUARDIAN) {
+      refreshData(selectedStudentId);
+    }
+  }, [selectedStudentId, user?.role]);
+
+  // Handler for student selection with localStorage persistence
+  const handleSelectStudent = (id: string) => {
+    setSelectedStudentId(id);
+    localStorage.setItem('manabee_selected_student', id);
+  };
 
   const handleLoginSuccess = (u: User) => {
     setUser(u);
@@ -527,7 +555,19 @@ export default function App() {
         onToggleStudentView={() => setViewAsStudent(!viewAsStudent)}
       >
         <Routes>
-          <Route path="/" element={<Dashboard currentUser={effectiveUser} schools={schools} lesson={lesson} logs={logs} questions={questions} />} />
+          <Route path="/" element={
+            <>
+              {user && user.role === UserRole.GUARDIAN && (
+                <StudentSelector
+                  students={MOCK_STUDENTS}
+                  selectedStudentId={selectedStudentId}
+                  onSelectStudent={handleSelectStudent}
+                  currentUser={user}
+                />
+              )}
+              <Dashboard currentUser={effectiveUser} schools={schools} lesson={lesson} logs={logs} questions={questions} studentId={selectedStudentId} />
+            </>
+          } />
 
           <Route path="/questions" element={
             <QuestionBoard currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
@@ -539,6 +579,7 @@ export default function App() {
               currentUser={effectiveUser}
               onUpdateLesson={handleUpdateLesson}
               onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+              studentId={selectedStudentId}
             />
           } />
 
@@ -567,6 +608,7 @@ export default function App() {
               currentUser={effectiveUser}
               schools={schools}
               onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+              studentId={selectedStudentId}
             />
           } />
 

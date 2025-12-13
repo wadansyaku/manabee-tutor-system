@@ -10,6 +10,7 @@ interface HomeworkListProps {
   currentUser: User;
   onUpdateLesson: (updated: Lesson) => void;
   onAudit: (action: string, summary: string) => void;
+  studentId?: string; // For Guardian multi-child support
 }
 
 type StatusFilter = 'all' | 'todo' | 'done';
@@ -197,9 +198,8 @@ export const HomeworkList: React.FC<HomeworkListProps> = ({ lesson, currentUser,
               <button
                 key={f}
                 onClick={() => setStatusFilter(f)}
-                className={`px-3 py-1.5 text-xs rounded-full border font-semibold transition ${
-                  statusFilter === f ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                }`}
+                className={`px-3 py-1.5 text-xs rounded-full border font-semibold transition ${statusFilter === f ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
               >
                 {f === 'todo' ? '未完了' : f === 'done' ? '完了済み' : 'すべて'}
               </button>
@@ -210,9 +210,8 @@ export const HomeworkList: React.FC<HomeworkListProps> = ({ lesson, currentUser,
               <button
                 key={t}
                 onClick={() => setTypeFilter(t)}
-                className={`px-3 py-1.5 text-xs rounded-full border transition ${
-                  typeFilter === t ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                }`}
+                className={`px-3 py-1.5 text-xs rounded-full border transition ${typeFilter === t ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
               >
                 {t === 'practice' ? '演習' : t === 'review' ? '復習' : t === 'challenge' ? 'チャレンジ' : '種別: 全部'}
               </button>
@@ -241,9 +240,8 @@ export const HomeworkList: React.FC<HomeworkListProps> = ({ lesson, currentUser,
                   <button
                     onClick={() => handleToggle(item.id!)}
                     disabled={!canCheck}
-                    className={`mt-1 rounded-full p-1 border ${
-                      item.isCompleted ? 'bg-green-100 text-green-600 border-green-200' : 'bg-white text-gray-400 border-gray-200'
-                    } disabled:opacity-50`}
+                    className={`mt-1 rounded-full p-1 border ${item.isCompleted ? 'bg-green-100 text-green-600 border-green-200' : 'bg-white text-gray-400 border-gray-200'
+                      } disabled:opacity-50`}
                   >
                     <CheckCircleIcon className="w-5 h-5" checked={item.isCompleted} />
                   </button>
@@ -315,9 +313,8 @@ export const HomeworkList: React.FC<HomeworkListProps> = ({ lesson, currentUser,
                   <button
                     key={t}
                     onClick={() => setNewType(t)}
-                    className={`px-3 py-1 text-xs rounded-full border ${
-                      newType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200'
-                    }`}
+                    className={`px-3 py-1 text-xs rounded-full border ${newType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200'
+                      }`}
                   >
                     {t === 'practice' ? '演習' : t === 'review' ? '復習' : 'チャレンジ'}
                   </button>

@@ -7,6 +7,7 @@ interface ExamScoreManagerProps {
     currentUser: User;
     schools: StudentSchool[];
     onAudit: (action: string, summary: string) => void;
+    studentId?: string; // For Guardian multi-child support
 }
 
 const STORAGE_KEY_SCORES = 'manabee_exam_scores_v1';
@@ -94,7 +95,7 @@ export const ExamScoreManager: React.FC<ExamScoreManagerProps> = ({ currentUser,
         const updated = [newScore, ...scores];
         setScores(updated);
         saveScores(updated);
-        onAudit('exam_score_added', `${schools.find(s => s.id === selectedSchool)?.name || ''} ${formYear}年 ${formExamType} 追加 (総合: ${totalScore}点)`);
+        onAudit('exam_score_added', `${schools.find(s => s.id === selectedSchool)?.name || ''} ${formYear}年 ${formExamType} 追加(総合: ${totalScore}点)`);
 
         // Reset form
         setShowAddForm(false);
@@ -160,7 +161,7 @@ export const ExamScoreManager: React.FC<ExamScoreManagerProps> = ({ currentUser,
                         <div className="bg-white/15 rounded-2xl p-4">
                             <p className="text-xs opacity-80">前回比</p>
                             {trends ? (
-                                <p className={`text-2xl font-bold ${trends.isUp ? 'text-green-300' : 'text-red-300'}`}>
+                                <p className={`text - 2xl font - bold ${trends.isUp ? 'text-green-300' : 'text-red-300'} `}>
                                     {trends.isUp ? '↑' : '↓'} {Math.abs(trends.diff)}点
                                 </p>
                             ) : (
@@ -178,10 +179,10 @@ export const ExamScoreManager: React.FC<ExamScoreManagerProps> = ({ currentUser,
                         <button
                             key={school.id}
                             onClick={() => setSelectedSchool(school.id)}
-                            className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${selectedSchool === school.id
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
+                            className={`px - 4 py - 2 rounded - xl text - sm font - semibold transition ${selectedSchool === school.id
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                } `}
                         >
                             {school.name}
                         </button>
@@ -193,7 +194,7 @@ export const ExamScoreManager: React.FC<ExamScoreManagerProps> = ({ currentUser,
             {Object.keys(subjectAverages).length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {Object.entries(subjectAverages).map(([subject, avg]) => (
-                        <div key={subject} className={`bg-gradient-to-br ${getSubjectColor(subject)} rounded-2xl p-4 text-white shadow-lg`}>
+                        <div key={subject} className={`bg - gradient - to - br ${getSubjectColor(subject)} rounded - 2xl p - 4 text - white shadow - lg`}>
                             <p className="text-sm opacity-90">{subject}</p>
                             <p className="text-3xl font-bold">{avg}<span className="text-lg">点</span></p>
                             <p className="text-xs opacity-80">平均</p>
@@ -306,8 +307,8 @@ export const ExamScoreManager: React.FC<ExamScoreManagerProps> = ({ currentUser,
                 ) : (
                     <div className="space-y-4">
                         {filteredScores.map((score, idx) => (
-                            <div key={score.id} className={`p-4 rounded-xl border ${score.status === 'verified' ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-gray-50'
-                                }`}>
+                            <div key={score.id} className={`p - 4 rounded - xl border ${score.status === 'verified' ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-gray-50'
+                                } `}>
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
                                         <div className="flex items-center gap-2">
@@ -323,7 +324,7 @@ export const ExamScoreManager: React.FC<ExamScoreManagerProps> = ({ currentUser,
                                     <div className="text-right">
                                         <p className="text-2xl font-bold text-indigo-600">{score.totalScore}<span className="text-sm font-normal">点</span></p>
                                         {score.passScore && (
-                                            <p className={`text-xs ${score.totalScore >= score.passScore ? 'text-green-600' : 'text-red-600'}`}>
+                                            <p className={`text - xs ${score.totalScore >= score.passScore ? 'text-green-600' : 'text-red-600'} `}>
                                                 合格最低点: {score.passScore}点
                                                 {score.totalScore >= score.passScore ? ' ✓' : ' △'}
                                             </p>

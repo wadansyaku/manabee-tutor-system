@@ -48,8 +48,8 @@
 - [ ] Rate limiting per user
 
 ### 🚧 PR #5: Multi-Student Support
-- [/] Guardian → multiple children selector
-- [ ] Student-specific data isolation
+- [/] Guardian → multiple children selector (StudentSelector.tsx)
+- [/] Student-specific data isolation
 - [ ] Dashboard per-child view
 
 ### PR #6: Question Flow Complete
@@ -58,10 +58,10 @@
 - [ ] Tutor review queue
 - [ ] Push notifications (FCM)
 
-### PR #7: Exam Score Management
-- [ ] Score input UI
-- [ ] Graph/chart visualization
-- [ ] Trend analysis
+### PR #7: Exam Score Management ✅
+- [x] Score input UI (ExamScoreManager.tsx)
+- [x] Subject averages display
+- [x] Trend analysis (前回比)
 
 ### PR #8: Mobile UX Improvements
 - [ ] Responsive sidebar (drawer)
