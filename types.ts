@@ -73,6 +73,10 @@ export interface HomeworkItem {
   type: 'practice' | 'review' | 'challenge';
   estimated_minutes: number;
   isCompleted?: boolean;
+  // Optional metadata to support scheduling and history
+  dueDate?: string;
+  assignedAt?: string;
+  completedAt?: string;
 }
 
 export interface HomeworkJson {

@@ -8,6 +8,7 @@ import { SchoolList } from './components/SchoolList';
 import { RoleBadge } from './components/RoleBadge';
 import { QuestionBoard } from './components/QuestionBoard';
 import { Dashboard } from './components/Dashboard';
+import { HomeworkList } from './components/HomeworkList';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './components/icons';
 
 // --- Login Screen ---
@@ -318,6 +319,7 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
       return [
         ...common,
         { name: '質問レビュー', path: '/questions' },
+        { name: '宿題管理', path: '/homework' },
         { name: '授業記録', path: '/lessons/l1' }, // Fixed ID for MVP
         { name: '受験校管理', path: '/schools' },
       ];
@@ -326,6 +328,7 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
     // Guardian / Admin
     return [
       ...common,
+      { name: '宿題', path: '/homework' },
       { name: '学習状況', path: '/lessons/l1' },
       { name: '受験校', path: '/schools' },
     ];
@@ -525,6 +528,15 @@ export default function App() {
 
           <Route path="/questions" element={
             <QuestionBoard currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
+          } />
+
+          <Route path="/homework" element={
+            <HomeworkList
+              lesson={lesson}
+              currentUser={effectiveUser}
+              onUpdateLesson={handleUpdateLesson}
+              onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+            />
           } />
 
           <Route path="/lessons/:id" element={
