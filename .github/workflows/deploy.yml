@@ -8,6 +8,8 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # Skip if secrets not configured
+    if: ${{ vars.ENABLE_FIREBASE_DEPLOY == 'true' || github.event_name == 'workflow_dispatch' }}
     
     steps:
       - name: Checkout repository
@@ -16,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
       
       - name: Install dependencies
@@ -40,14 +42,12 @@ jobs:
       - name: Build Functions
         run: npm --prefix functions run build
       
-      - name: Deploy to Firebase
+      - name: Deploy to Firebase Hosting
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
           projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
-      
-      # Optional: Deploy Cloud Functions (requires Blaze plan)
-      # - name: Deploy Functions
-      #   run: npx firebase-tools deploy --only functions --token "${{ secrets.FIREBASE_TOKEN }}"
+
