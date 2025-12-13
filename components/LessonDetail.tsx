@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lesson, User, UserRole, ReflectionInputs, CharacterReflection } from '../types';
 import { generateLessonContent, isAIAvailable } from '../services/geminiService';
 import { INITIAL_STUDENT_CONTEXT } from '../constants';
+import { getHomeworkMeta } from '../services/homeworkUtils';
 import { MicrophoneIcon, SparklesIcon, CheckCircleIcon } from './icons';
 import { QuizCard } from './QuizCard';
 
@@ -289,29 +290,33 @@ export const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, currentUser,
             </span>
           </div>
           <div className="divide-y divide-gray-100">
-            {lesson.aiHomework.items.map((hw, idx) => (
-              <div key={idx} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-4">
-                  <input
-                    type="checkbox"
-                    checked={hw.isCompleted}
-                    onChange={() => handleHomeworkToggle(idx)}
-                    disabled={!canCheckHomework}
-                    className="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded disabled:opacity-50"
-                  />
-                  <div>
-                    <p className={`font-medium ${hw.isCompleted ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{hw.title}</p>
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">{hw.type}</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">約{hw.estimated_minutes}分</span>
+            {lesson.aiHomework.items.map((hw, idx) => {
+              const due = getHomeworkMeta(lesson.scheduledAt, hw);
+              return (
+                <div key={idx} className="p-4 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="checkbox"
+                      checked={hw.isCompleted}
+                      onChange={() => handleHomeworkToggle(idx)}
+                      disabled={!canCheckHomework}
+                      className="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded disabled:opacity-50"
+                    />
+                    <div>
+                      <p className={`font-medium ${hw.isCompleted ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{hw.title}</p>
+                      <div className="flex gap-2 mt-1">
+                        <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">{hw.type}</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">約{hw.estimated_minutes}分</span>
+                      </div>
                     </div>
                   </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${due.daysRemaining < 0 ? 'text-red-600' : 'text-orange-600'}`}>{due.remainingLabel}</p>
+                    <p className="text-xs text-gray-500">期限: {due.displayDate}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-orange-600">あと{hw.due_days_from_now}日</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -1,5 +1,11 @@
 # Implementation Tasks
 
+## 🚧 In Progress (M2)
+- [x] Homework List page（期限計算ユーティリティ、宿題トグル、手動追加/削除、監査ログ）
+- [ ] Homework → Firebase 永続化（Auth/Firestore連携後に移行）
+- [ ] 宿題のリマインド/期限切れ通知（設計）
+- [ ] main 統合用の小さめPR運用開始（build/lint通過＋TODO更新を必須化）
+
 ## ✅ M1: Foundation (This PR)
 - [x] **Architecture & Roles**
     - [x] Define Types (Admin, Jobs, Scores)

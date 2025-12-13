@@ -19,6 +19,15 @@ export const DateUtils = {
     return isNaN(d.getTime()) ? new Date() : d;
   },
 
+  // Add calendar days to a given date and return ISO string
+  addDays: (dateInput: string | Date, days: number): string => {
+    const base = new Date(dateInput);
+    if (isNaN(base.getTime())) return new Date().toISOString();
+    const result = new Date(base);
+    result.setDate(result.getDate() + days);
+    return result.toISOString();
+  },
+
   // Calculate strict calendar days remaining using Local Midnight
   getDaysRemaining: (targetDateStr: string, _isAllDay: boolean, baseDate: Date = new Date()): number => {
     const target = new Date(targetDateStr);
