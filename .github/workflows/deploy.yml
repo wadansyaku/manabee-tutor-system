@@ -46,11 +46,10 @@ jobs:
       - name: Build Functions
         run: npm --prefix functions run build
       
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Setup Firebase Service Account
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > $HOME/gcloud.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcloud.json" >> $GITHUB_ENV
       
       - name: Deploy Firestore Rules
         run: npx firebase-tools deploy --only firestore:rules --project ${{ secrets.FIREBASE_PROJECT_ID }}
@@ -70,6 +69,10 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
           projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Cleanup Credentials
+        if: always()
+        run: rm -f $HOME/gcloud.json
 
       - name: Create Release Tag
         if: success()
