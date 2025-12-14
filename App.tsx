@@ -14,6 +14,7 @@ import { StudentSelector, StudentSelectorCompact, MOCK_STUDENTS } from './compon
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './components/icons';
 // Admin Components
 import { UserManagement } from './components/admin/UserManagement';
+import { BottomNav } from './components/BottomNav';
 import { SystemSettings } from './components/admin/SystemSettings';
 import { UsageMonitor } from './components/admin/UsageMonitor';
 import { DatabaseSeeder } from './components/admin/DatabaseSeeder';
@@ -358,7 +359,7 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
       ];
     }
 
-    // Guardian / Admin
+    // Admin - System management only (no student-specific pages)
     if (currentUser.role === UserRole.ADMIN) {
       return [
         ...common,
@@ -366,9 +367,6 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
         { name: 'システム設定', path: '/admin/settings' },
         { name: '使用状況', path: '/admin/usage' },
         { name: 'DB初期化', path: '/admin/database' },
-        { name: '宿題', path: '/homework' },
-        { name: '成績', path: '/scores' },
-        { name: '受験校', path: '/schools' },
       ];
     }
 
@@ -476,9 +474,12 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
           <button onClick={onLogout} className="text-xs text-gray-500">ログアウト</button>
         </header>
 
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8 overflow-y-auto">
           {children}
         </main>
+
+        {/* Bottom Navigation for Mobile */}
+        <BottomNav currentUser={currentUser} />
       </div>
     </div>
   );
@@ -504,8 +505,8 @@ export default function App() {
     const allSchools = StorageService.loadSchools();
     const allQuestions = StorageService.loadQuestions();
 
-    // For Guardians, filter data by selected child
-    if (user?.role === UserRole.GUARDIAN) {
+    // For Guardians and Tutors, filter data by selected student
+    if (user?.role === UserRole.GUARDIAN || user?.role === UserRole.TUTOR) {
       setSchools(allSchools.filter(s => s.studentId === targetStudentId));
       setQuestions(allQuestions.filter(q => q.studentId === targetStudentId));
     } else {
@@ -520,9 +521,9 @@ export default function App() {
     refreshData();
   }, []);
 
-  // Refresh data when selected student changes (for Guardians)
+  // Refresh data when selected student changes (for Guardians and Tutors)
   useEffect(() => {
-    if (user?.role === UserRole.GUARDIAN) {
+    if (user?.role === UserRole.GUARDIAN || user?.role === UserRole.TUTOR) {
       refreshData(selectedStudentId);
     }
   }, [selectedStudentId, user?.role]);
@@ -601,7 +602,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={
             <>
-              {user && user.role === UserRole.GUARDIAN && (
+              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
                 <StudentSelector
                   students={MOCK_STUDENTS}
                   selectedStudentId={selectedStudentId}
@@ -618,42 +619,82 @@ export default function App() {
           } />
 
           <Route path="/homework" element={
-            <HomeworkList
-              lesson={lesson}
-              currentUser={effectiveUser}
-              onUpdateLesson={handleUpdateLesson}
-              onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-              studentId={selectedStudentId}
-            />
+            <>
+              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
+                <StudentSelector
+                  students={MOCK_STUDENTS}
+                  selectedStudentId={selectedStudentId}
+                  onSelectStudent={handleSelectStudent}
+                  currentUser={user}
+                />
+              )}
+              <HomeworkList
+                lesson={lesson}
+                currentUser={effectiveUser}
+                onUpdateLesson={handleUpdateLesson}
+                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+                studentId={selectedStudentId}
+              />
+            </>
           } />
 
           <Route path="/lessons/:id" element={
-            <LessonDetail
-              lesson={lesson}
-              currentUser={effectiveUser}
-              onUpdateLesson={handleUpdateLesson}
-              onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-            />
+            <>
+              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
+                <StudentSelector
+                  students={MOCK_STUDENTS}
+                  selectedStudentId={selectedStudentId}
+                  onSelectStudent={handleSelectStudent}
+                  currentUser={user}
+                />
+              )}
+              <LessonDetail
+                lesson={lesson}
+                currentUser={effectiveUser}
+                onUpdateLesson={handleUpdateLesson}
+                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+              />
+            </>
           } />
 
           <Route path="/schools" element={
-            <SchoolList
-              schools={schools}
-              currentUser={effectiveUser}
-              onUpdateSchool={handleUpdateSchool}
-              onAddSchool={handleAddSchool}
-              onDeleteSchool={handleDeleteSchool}
-              permissionMode={effectiveUser.role === UserRole.TUTOR ? 'strict' : 'collaborative'}
-            />
+            <>
+              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
+                <StudentSelector
+                  students={MOCK_STUDENTS}
+                  selectedStudentId={selectedStudentId}
+                  onSelectStudent={handleSelectStudent}
+                  currentUser={user}
+                />
+              )}
+              <SchoolList
+                schools={schools}
+                currentUser={effectiveUser}
+                onUpdateSchool={handleUpdateSchool}
+                onAddSchool={handleAddSchool}
+                onDeleteSchool={handleDeleteSchool}
+                permissionMode={effectiveUser.role === UserRole.TUTOR ? 'strict' : 'collaborative'}
+              />
+            </>
           } />
 
           <Route path="/scores" element={
-            <ExamScoreManager
-              currentUser={effectiveUser}
-              schools={schools}
-              onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-              studentId={selectedStudentId}
-            />
+            <>
+              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
+                <StudentSelector
+                  students={MOCK_STUDENTS}
+                  selectedStudentId={selectedStudentId}
+                  onSelectStudent={handleSelectStudent}
+                  currentUser={user}
+                />
+              )}
+              <ExamScoreManager
+                currentUser={effectiveUser}
+                schools={schools}
+                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+                studentId={selectedStudentId}
+              />
+            </>
           } />
 
           {/* Admin Routes */}

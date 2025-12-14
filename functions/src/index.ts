@@ -311,3 +311,258 @@ export const updateUser = functions.https.onCall(async (data, context) => {
 
     return { success: true };
 });
+
+/**
+ * Analyze Question Image (Firestore Trigger)
+ * 
+ * Automatically analyzes a question when it's created with an image.
+ * Uses Gemini Vision to understand the question and generate an initial analysis.
+ */
+export const analyzeQuestion = functions.firestore
+    .document('questions/{questionId}')
+    .onCreate(async (snap, context) => {
+        const question = snap.data();
+        const questionId = context.params.questionId;
+
+        // Skip if already processed or no image
+        if (question.status !== 'queued' || !question.imageUrl) {
+            console.log(`Skipping question ${questionId}: status=${question.status}, hasImage=${!!question.imageUrl}`);
+            return null;
+        }
+
+        try {
+            const ai = getAIClient();
+
+            // Update status to processing
+            await snap.ref.update({
+                status: 'processing',
+                processingStartedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Analyze with Gemini Vision
+            const analysisResult = await ai.models.generateContent({
+                model: MODEL_NAME,
+                contents: [
+                    {
+                        role: 'user',
+                        parts: [
+                            {
+                                text: `この画像は小学6年生の生徒からの質問です。以下の形式で分析してください:
+1. 教科と単元の特定
+2. 問題の要点
+3. つまずきポイントの推測
+4. 簡潔なヒント（答えは書かない）
+
+画像の問題を分析してください。` },
+                            { inlineData: { mimeType: 'image/jpeg', data: question.imageBase64 || '' } }
+                        ]
+                    }
+                ],
+                config: {
+                    temperature: 0.3,
+                    maxOutputTokens: 500
+                }
+            });
+
+            const analysis = analysisResult.text || '分析できませんでした';
+
+            // Update with analysis result
+            await snap.ref.update({
+                status: 'analyzed',
+                aiAnalysis: analysis,
+                analyzedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Log usage
+            await logApiUsage(question.studentId || 'system', 'analyzeQuestion');
+
+            console.log(`Question ${questionId} analyzed successfully`);
+            return { success: true, questionId };
+
+        } catch (error: any) {
+            console.error(`Error analyzing question ${questionId}:`, error);
+
+            await snap.ref.update({
+                status: 'error',
+                error: error.message,
+                errorAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            return { success: false, error: error.message };
+        }
+    });
+
+/**
+ * Send Push Notification (Callable)
+ * 
+ * Sends FCM push notifications to users.
+ */
+export const sendNotification = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { targetUserId, title, body, url, type } = data;
+
+    if (!targetUserId || !title || !body) {
+        throw new functions.https.HttpsError('invalid-argument', 'targetUserId, title, and body required');
+    }
+
+    // Get target user's FCM tokens
+    const userDoc = await db.collection('users').doc(targetUserId).get();
+    if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Target user not found');
+    }
+
+    const userData = userDoc.data();
+    const tokens: string[] = userData?.fcmTokens || [];
+
+    if (tokens.length === 0) {
+        console.log(`No FCM tokens for user ${targetUserId}`);
+        return { success: true, sent: 0, message: 'No tokens registered' };
+    }
+
+    // Build notification payload
+    const message = {
+        notification: {
+            title,
+            body
+        },
+        data: {
+            url: url || '/',
+            type: type || 'general',
+            timestamp: new Date().toISOString()
+        },
+        tokens
+    };
+
+    try {
+        const response = await admin.messaging().sendEachForMulticast(message);
+
+        // Store notification in Firestore
+        await db.collection('notifications').add({
+            targetUserId,
+            senderId: context.auth.uid,
+            title,
+            body,
+            url,
+            type,
+            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            successCount: response.successCount,
+            failureCount: response.failureCount
+        });
+
+        // Clean up invalid tokens
+        if (response.failureCount > 0) {
+            const invalidTokens: string[] = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success && resp.error?.code === 'messaging/invalid-registration-token') {
+                    invalidTokens.push(tokens[idx]);
+                }
+            });
+
+            if (invalidTokens.length > 0) {
+                const validTokens = tokens.filter(t => !invalidTokens.includes(t));
+                await db.collection('users').doc(targetUserId).update({ fcmTokens: validTokens });
+            }
+        }
+
+        return {
+            success: true,
+            sent: response.successCount,
+            failed: response.failureCount
+        };
+
+    } catch (error: any) {
+        console.error('FCM send error:', error);
+        throw new functions.https.HttpsError('internal', `Failed to send notification: ${error.message}`);
+    }
+});
+
+/**
+ * Register FCM Token (Callable)
+ * 
+ * Registers a user's FCM token for push notifications.
+ */
+export const registerFcmToken = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const { token } = data;
+    if (!token) {
+        throw new functions.https.HttpsError('invalid-argument', 'FCM token required');
+    }
+
+    const userRef = db.collection('users').doc(context.auth.uid);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'User not found');
+    }
+
+    const existingTokens: string[] = userDoc.data()?.fcmTokens || [];
+
+    if (!existingTokens.includes(token)) {
+        await userRef.update({
+            fcmTokens: admin.firestore.FieldValue.arrayUnion(token),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    }
+
+    return { success: true };
+});
+
+/**
+ * Cleanup Rate Limits (Scheduled)
+ * 
+ * Runs daily to clean up old rate limit documents.
+ */
+export const cleanupRateLimits = functions.pubsub
+    .schedule('every 24 hours')
+    .onRun(async () => {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - 7); // Keep 7 days of history
+        const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+        const snapshot = await db.collection(RATE_LIMIT_COLLECTION).get();
+
+        const batch = db.batch();
+        let deleteCount = 0;
+
+        snapshot.docs.forEach(doc => {
+            // Document ID format: userId_YYYY-MM-DD
+            const datePart = doc.id.split('_').pop();
+            if (datePart && datePart < cutoffStr) {
+                batch.delete(doc.ref);
+                deleteCount++;
+            }
+        });
+
+        if (deleteCount > 0) {
+            await batch.commit();
+            console.log(`Cleaned up ${deleteCount} old rate limit documents`);
+        }
+
+        return null;
+    });
+
+/**
+ * On User Created (Auth Trigger)
+ * 
+ * Creates a user profile in Firestore when a new Firebase Auth user is created.
+ */
+export const onUserCreated = functions.auth.user().onCreate(async (user) => {
+    const { uid, email, displayName } = user;
+
+    await db.collection('users').doc(uid).set({
+        email: email || '',
+        name: displayName || email?.split('@')[0] || 'New User',
+        role: 'STUDENT', // Default role, admin can change
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        mustChangePassword: true
+    });
+
+    console.log(`Created user profile for ${uid}`);
+    return null;
+});

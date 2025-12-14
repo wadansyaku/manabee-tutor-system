@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  deploy:
+    name: Deploy to Production
     runs-on: ubuntu-latest
-    # Skip if secrets not configured
     if: ${{ vars.ENABLE_FIREBASE_DEPLOY == 'true' || github.event_name == 'workflow_dispatch' }}
     
     steps:
@@ -42,6 +42,25 @@ jobs:
       - name: Build Functions
         run: npm --prefix functions run build
       
+      - name: Deploy Firestore Rules
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        run: npx firebase-tools deploy --only firestore:rules --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy Storage Rules
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        run: npx firebase-tools deploy --only storage:rules --project ${{ secrets.FIREBASE_PROJECT_ID }} || echo "Storage rules not configured"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy Cloud Functions
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        run: npx firebase-tools deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: Deploy to Firebase Hosting
         if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -51,3 +70,13 @@ jobs:
           channelId: live
           projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
 
+      - name: Create Release Tag
+        if: success()
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          VERSION="v$(date +'%Y%m%d.%H%M%S')"
+          git tag -a $VERSION -m "Deployed to production"
+          git push origin $VERSION
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

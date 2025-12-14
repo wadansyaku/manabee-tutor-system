@@ -126,8 +126,117 @@ export const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promi
     });
 };
 
+/**
+     * Upload a profile photo
+     */
+export const uploadProfilePhoto = async (
+    file: File,
+    userId: string
+): Promise<string> => {
+    if (!isFirebaseMode()) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    try {
+        const storage = getStorageInstance();
+        const ext = file.name.split('.').pop() || 'jpg';
+        const path = `profiles/${userId}/avatar.${ext}`;
+
+        const storageRef = ref(storage, path);
+
+        const snapshot = await uploadBytes(storageRef, file, {
+            contentType: file.type,
+            customMetadata: {
+                userId,
+                uploadedAt: new Date().toISOString()
+            }
+        });
+
+        return await getDownloadURL(snapshot.ref);
+    } catch (error) {
+        console.error('Profile photo upload failed:', error);
+        throw error;
+    }
+};
+
+/**
+ * Delete a file from storage
+ */
+export const deleteFile = async (path: string): Promise<void> => {
+    if (!isFirebaseMode()) {
+        console.log('Local mode: delete simulated for', path);
+        return;
+    }
+
+    try {
+        const { deleteObject } = await import('firebase/storage');
+        const storage = getStorageInstance();
+        const storageRef = ref(storage, path);
+        await deleteObject(storageRef);
+    } catch (error) {
+        console.error('File delete failed:', error);
+        throw error;
+    }
+};
+
+/**
+ * Upload with progress tracking
+ */
+export const uploadWithProgress = async (
+    file: File,
+    path: string,
+    onProgress?: (progress: number) => void
+): Promise<string> => {
+    if (!isFirebaseMode()) {
+        if (onProgress) onProgress(100);
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    try {
+        const { uploadBytesResumable } = await import('firebase/storage');
+        const storage = getStorageInstance();
+        const storageRef = ref(storage, path);
+
+        return new Promise((resolve, reject) => {
+            const uploadTask = uploadBytesResumable(storageRef, file);
+
+            uploadTask.on(
+                'state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    if (onProgress) onProgress(progress);
+                },
+                (error) => {
+                    console.error('Upload error:', error);
+                    reject(error);
+                },
+                async () => {
+                    const url = await getDownloadURL(uploadTask.snapshot.ref);
+                    resolve(url);
+                }
+            );
+        });
+    } catch (error) {
+        console.error('Upload with progress failed:', error);
+        throw error;
+    }
+};
+
 export default {
     uploadQuestionPhoto,
+    uploadProfilePhoto,
+    uploadWithProgress,
     compressImage,
+    deleteFile,
     isFirebaseMode
 };

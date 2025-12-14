@@ -336,21 +336,24 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
 
 // ===== TUTOR DASHBOARD =====
 // Goal: Efficient class management, student overview
-const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson, questions = [] }) => {
+const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson, questions = [], studentId }) => {
     const upcomingEvents = getUpcomingEvents(schools);
-    const pendingQuestions = questions.filter(q => q.status === 'pending');
+    const pendingQuestions = questions.filter(q => q.status === 'pending' || q.status === 'queued');
+
+    // Get selected student info
+    const selectedStudent = MOCK_STUDENTS.find(s => s.id === studentId) || MOCK_STUDENTS[0];
 
     // Mock tutor data
     const tutorStats = {
         todayClasses: 3,
         pendingReviews: pendingQuestions.length,
         thisMonthHours: 48,
-        students: ['たけし', 'まなみ', 'けんた']
+        students: MOCK_STUDENTS.map(s => s.name)
     };
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
-            {/* Welcome Banner */}
+            {/* Welcome Banner - Now shows selected student */}
             <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-3xl p-6 text-white shadow-xl">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -359,7 +362,10 @@ const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold">{currentUser.name}先生</h1>
-                            <p className="text-white/90">{new Date().toLocaleDateString('ja-JP', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                            <p className="text-white/90 flex items-center gap-2">
+                                <span>📋</span>
+                                <span>{selectedStudent.name}さんのデータを表示中</span>
+                            </p>
                         </div>
                     </div>
                     <div className="text-right">
@@ -507,6 +513,78 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                     <p className="text-xs text-gray-500 mb-2">対応待ち</p>
                     <p className="text-3xl font-bold text-orange-600">{adminStats.pendingIssues}</p>
+                </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Link
+                    to="/admin/users"
+                    className="flex items-center gap-3 p-4 bg-purple-50 rounded-2xl border-2 border-purple-100 hover:bg-purple-100 transition-colors group"
+                >
+                    <span className="text-2xl group-hover:scale-110 transition-transform">👥</span>
+                    <div>
+                        <p className="font-bold text-purple-800">ユーザー管理</p>
+                        <p className="text-xs text-purple-600">{adminStats.totalUsers}名登録中</p>
+                    </div>
+                </Link>
+                <Link
+                    to="/admin/settings"
+                    className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border-2 border-blue-100 hover:bg-blue-100 transition-colors group"
+                >
+                    <span className="text-2xl group-hover:scale-110 transition-transform">⚙️</span>
+                    <div>
+                        <p className="font-bold text-blue-800">システム設定</p>
+                        <p className="text-xs text-blue-600">API・通知・表示</p>
+                    </div>
+                </Link>
+                <Link
+                    to="/admin/usage"
+                    className="flex items-center gap-3 p-4 bg-green-50 rounded-2xl border-2 border-green-100 hover:bg-green-100 transition-colors group"
+                >
+                    <span className="text-2xl group-hover:scale-110 transition-transform">📊</span>
+                    <div>
+                        <p className="font-bold text-green-800">使用状況</p>
+                        <p className="text-xs text-green-600">API呼び出し監視</p>
+                    </div>
+                </Link>
+                <Link
+                    to="/admin/database"
+                    className="flex items-center gap-3 p-4 bg-orange-50 rounded-2xl border-2 border-orange-100 hover:bg-orange-100 transition-colors group"
+                >
+                    <span className="text-2xl group-hover:scale-110 transition-transform">🔧</span>
+                    <div>
+                        <p className="font-bold text-orange-800">DB初期化</p>
+                        <p className="text-xs text-orange-600">テストデータ投入</p>
+                    </div>
+                </Link>
+            </div>
+
+            {/* System Health */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">🔍 システム状態</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
+                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                        <div>
+                            <p className="text-sm font-semibold text-green-800">フロントエンド</p>
+                            <p className="text-xs text-green-600">正常稼働</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
+                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                        <div>
+                            <p className="text-sm font-semibold text-green-800">ローカルストレージ</p>
+                            <p className="text-xs text-green-600">接続済み</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-xl">
+                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                        <div>
+                            <p className="text-sm font-semibold text-yellow-800">Firebase</p>
+                            <p className="text-xs text-yellow-600">未接続 (ローカルモード)</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 

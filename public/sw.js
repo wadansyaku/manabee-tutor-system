@@ -1,5 +1,5 @@
 // Manabee Tutor System - Service Worker
-const CACHE_NAME = 'manabee-v1';
+const CACHE_NAME = 'manabee-v2';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -75,13 +75,124 @@ self.addEventListener('fetch', (event) => {
     );
 });
 
-// Background sync for offline submissions (future enhancement)
+// Background sync for offline submissions
 self.addEventListener('sync', (event) => {
     if (event.tag === 'sync-questions') {
-        console.log('[SW] Syncing offline questions');
-        // TODO: Implement offline question sync
+        event.waitUntil(syncOfflineQuestions());
+    } else if (event.tag === 'sync-reflections') {
+        event.waitUntil(syncOfflineReflections());
     }
 });
+
+// Sync offline questions to server
+async function syncOfflineQuestions() {
+    console.log('[SW] Syncing offline questions');
+
+    try {
+        const db = await openIndexedDB();
+        const questions = await getOfflineData(db, 'offline-questions');
+
+        for (const question of questions) {
+            try {
+                // Post to Firestore (assumes Firebase is initialized)
+                const response = await fetch('/api/questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(question)
+                });
+
+                if (response.ok) {
+                    await deleteOfflineData(db, 'offline-questions', question.id);
+                    console.log(`[SW] Synced question ${question.id}`);
+                }
+            } catch (error) {
+                console.error(`[SW] Failed to sync question ${question.id}:`, error);
+            }
+        }
+    } catch (error) {
+        console.error('[SW] Sync failed:', error);
+    }
+}
+
+// Sync offline reflections
+async function syncOfflineReflections() {
+    console.log('[SW] Syncing offline reflections');
+    // Similar implementation for reflections
+}
+
+// IndexedDB helpers
+function openIndexedDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('manabee-offline', 1);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('offline-questions')) {
+                db.createObjectStore('offline-questions', { keyPath: 'id' });
+            }
+            if (!db.objectStoreNames.contains('offline-reflections')) {
+                db.createObjectStore('offline-reflections', { keyPath: 'id' });
+            }
+        };
+    });
+}
+
+function getOfflineData(db, storeName) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const request = store.getAll();
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+    });
+}
+
+function deleteOfflineData(db, storeName, id) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        const request = store.delete(id);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve();
+    });
+}
+
+// Helper to store offline data (can be called from main app via postMessage)
+self.addEventListener('message', (event) => {
+    if (event.data.type === 'STORE_OFFLINE_QUESTION') {
+        storeOfflineQuestion(event.data.question);
+    } else if (event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+
+async function storeOfflineQuestion(question) {
+    try {
+        const db = await openIndexedDB();
+        const tx = db.transaction('offline-questions', 'readwrite');
+        const store = tx.objectStore('offline-questions');
+
+        await new Promise((resolve, reject) => {
+            const request = store.put(question);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve();
+        });
+
+        console.log('[SW] Stored offline question:', question.id);
+
+        // Register for sync when online
+        if ('sync' in self.registration) {
+            await self.registration.sync.register('sync-questions');
+        }
+    } catch (error) {
+        console.error('[SW] Failed to store offline question:', error);
+    }
+}
 
 // Push notifications
 self.addEventListener('push', (event) => {

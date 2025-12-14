@@ -1,4 +1,4 @@
-// Student Selector Component for Guardians
+// Student Selector Component for Guardians and Tutors
 import React from 'react';
 import { User, UserRole } from '../types';
 
@@ -28,8 +28,8 @@ export const StudentSelector: React.FC<StudentSelectorProps> = ({
     onSelectStudent,
     currentUser
 }) => {
-    // Only show for guardians
-    if (currentUser.role !== UserRole.GUARDIAN) {
+    // Only show for guardians and tutors
+    if (currentUser.role !== UserRole.GUARDIAN && currentUser.role !== UserRole.TUTOR) {
         return null;
     }
 
@@ -38,18 +38,21 @@ export const StudentSelector: React.FC<StudentSelectorProps> = ({
     }
 
     const selectedStudent = students.find(s => s.id === selectedStudentId);
+    const label = currentUser.role === UserRole.GUARDIAN ? 'お子様を選択' : '生徒を選択';
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
-            <p className="text-xs font-bold text-gray-500 mb-2">お子様を選択</p>
+            <p className="text-xs font-bold text-gray-500 mb-2">{label}</p>
             <div className="flex gap-2 flex-wrap">
                 {students.map(student => (
                     <button
                         key={student.id}
                         onClick={() => onSelectStudent(student.id)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl transition font-semibold ${selectedStudentId === student.id
-                                ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? currentUser.role === UserRole.TUTOR
+                                ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md'
+                                : 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                     >
                         <span className="text-xl">{student.avatar || '👤'}</span>
@@ -82,9 +85,15 @@ export const StudentSelectorCompact: React.FC<StudentSelectorProps> = ({
     onSelectStudent,
     currentUser
 }) => {
-    if (currentUser.role !== UserRole.GUARDIAN || students.length <= 1) {
+    if ((currentUser.role !== UserRole.GUARDIAN && currentUser.role !== UserRole.TUTOR) || students.length <= 1) {
         return null;
     }
+
+    const isTutor = currentUser.role === UserRole.TUTOR;
+    const bgClass = isTutor
+        ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+        : 'bg-pink-50 border-pink-200 text-pink-700 hover:bg-pink-100';
+    const arrowClass = isTutor ? 'text-blue-500' : 'text-pink-500';
 
     return (
         <div className="relative">

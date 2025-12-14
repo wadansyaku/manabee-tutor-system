@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { QuestionJob, User, UserRole } from '../types';
 import { StorageService, DateUtils } from '../services/storageService';
 import { uploadQuestionPhoto, compressImage } from '../services/photoStorageService';
@@ -10,10 +10,35 @@ interface QuestionBoardProps {
   onUpdate: () => void;
 }
 
+type StatusFilter = 'all' | 'pending' | 'done';
+
+const getStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'queued': return 'AI解析待ち';
+    case 'processing': return 'AI処理中';
+    case 'needs_review': return '先生確認待ち';
+    case 'done': return '回答済み';
+    case 'error': return 'エラー';
+    default: return status;
+  }
+};
+
+const getStatusColor = (status: string): string => {
+  switch (status) {
+    case 'queued': return 'bg-blue-100 text-blue-700';
+    case 'processing': return 'bg-yellow-100 text-yellow-700';
+    case 'needs_review': return 'bg-orange-100 text-orange-700';
+    case 'done': return 'bg-green-100 text-green-700';
+    case 'error': return 'bg-red-100 text-red-700';
+    default: return 'bg-gray-100 text-gray-700';
+  }
+};
+
 export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, questions, onUpdate }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const [newQuestionSubject, setNewQuestionSubject] = useState('算数');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   // Strict Limit: Student can only post 3 questions per day
   const todayQuestions = questions.filter(q => {
@@ -27,6 +52,22 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
 
   const dailyLimit = 3;
   const remainingLimit = Math.max(0, dailyLimit - todayQuestions.length);
+
+  // Statistics for Tutor
+  const pendingCount = useMemo(() =>
+    questions.filter(q => q.status !== 'done').length,
+    [questions]
+  );
+  const todayCount = useMemo(() =>
+    questions.filter(q => {
+      const qDate = new Date(q.createdAt);
+      const now = new Date();
+      return qDate.getDate() === now.getDate() &&
+        qDate.getMonth() === now.getMonth() &&
+        qDate.getFullYear() === now.getFullYear();
+    }).length,
+    [questions]
+  );
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,23 +136,67 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
   };
 
   // Filter View
-  const viewableQuestions = currentUser.role === UserRole.TUTOR
-    ? questions // Tutor sees all
-    : questions.filter(q => q.studentId === currentUser.id); // Student/Guardian sees own
+  const viewableQuestions = useMemo(() => {
+    const baseQuestions = currentUser.role === UserRole.TUTOR
+      ? questions // Tutor sees all
+      : questions.filter(q => q.studentId === currentUser.id); // Student/Guardian sees own
+
+    if (statusFilter === 'pending') {
+      return baseQuestions.filter(q => q.status !== 'done');
+    } else if (statusFilter === 'done') {
+      return baseQuestions.filter(q => q.status === 'done');
+    }
+    return baseQuestions;
+  }, [questions, currentUser, statusFilter]);
+
+  // Sort: pending first, then by date
+  const sortedQuestions = useMemo(() =>
+    [...viewableQuestions].sort((a, b) => {
+      if (a.status === 'done' && b.status !== 'done') return 1;
+      if (a.status !== 'done' && b.status === 'done') return -1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }),
+    [viewableQuestions]
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">📸 写真で質問</h2>
-          {currentUser.role === UserRole.STUDENT && (
-            <p className="text-sm text-gray-500 mt-1">
-              今日あと <span className="font-bold text-indigo-600 text-lg">{remainingLimit}</span> 回 質問できます
-            </p>
-          )}
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Header Section */}
+      {currentUser.role === UserRole.TUTOR ? (
+        <div className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 rounded-3xl p-6 text-white shadow-xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm opacity-80">講師ダッシュボード</p>
+              <h1 className="text-2xl font-bold">質問レビュー</h1>
+              <p className="opacity-80 text-sm mt-1">生徒からの質問を確認・回答します</p>
+            </div>
+            <div className="text-right">
+              <p className="text-4xl font-bold">{pendingCount}</p>
+              <p className="text-sm opacity-80">件の未対応</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="bg-white/15 rounded-2xl p-4">
+              <p className="text-xs opacity-80">今日の質問</p>
+              <p className="text-2xl font-bold">{todayCount}</p>
+            </div>
+            <div className="bg-white/15 rounded-2xl p-4">
+              <p className="text-xs opacity-80">全質問</p>
+              <p className="text-2xl font-bold">{questions.length}</p>
+            </div>
+          </div>
         </div>
+      ) : (
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">📸 写真で質問</h2>
+            {currentUser.role === UserRole.STUDENT && (
+              <p className="text-sm text-gray-500 mt-1">
+                今日あと <span className="font-bold text-indigo-600 text-lg">{remainingLimit}</span> 回 質問できます
+              </p>
+            )}
+          </div>
 
-        {currentUser.role !== UserRole.TUTOR && (
           <div className="relative">
             <input
               type="file"
@@ -124,10 +209,10 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
             <button
               disabled={isUploading}
               className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold shadow-md transition-all ${isUploading
-                  ? 'bg-indigo-400 text-white cursor-wait'
-                  : remainingLimit > 0
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:scale-105'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                ? 'bg-indigo-400 text-white cursor-wait'
+                : remainingLimit > 0
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:scale-105'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
             >
               {isUploading ? (
@@ -146,9 +231,10 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
               )}
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
+      {/* Subject Selector (for non-tutor) */}
       {currentUser.role !== UserRole.TUTOR && (
         <div className="flex gap-2 mb-4">
           {['算数', '国語', '理科', '社会'].map(sub => (
@@ -163,24 +249,44 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
         </div>
       )}
 
+      {/* Status Filter */}
+      <div className="flex gap-2 bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
+        {(['all', 'pending', 'done'] as StatusFilter[]).map(f => (
+          <button
+            key={f}
+            onClick={() => setStatusFilter(f)}
+            className={`px-4 py-2 text-sm rounded-xl font-semibold transition ${statusFilter === f
+              ? 'bg-indigo-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+          >
+            {f === 'all' ? 'すべて' : f === 'pending' ? '未対応' : '対応済み'}
+            {f === 'pending' && pendingCount > 0 && (
+              <span className="ml-1 bg-white/20 px-1.5 rounded-full text-xs">{pendingCount}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Board */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {viewableQuestions.length === 0 && (
+        {sortedQuestions.length === 0 && (
           <div className="col-span-full py-12 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300">
-            <p className="text-gray-400">まだ質問はありません</p>
+            <p className="text-gray-400">
+              {statusFilter === 'pending' ? '未対応の質問はありません 🎉' :
+                statusFilter === 'done' ? '対応済みの質問はありません' :
+                  'まだ質問はありません'}
+            </p>
           </div>
         )}
 
-        {viewableQuestions.map(job => (
-          <div key={job.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+        {sortedQuestions.map(job => (
+          <div key={job.id} className={`bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col ${job.status !== 'done' ? 'border-orange-200 ring-2 ring-orange-100' : 'border-gray-200'}`}>
             {/* Header */}
             <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
               <span className="text-xs font-bold bg-white px-2 py-0.5 rounded border border-gray-200">{job.subject}</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${job.status === 'done' ? 'bg-green-100 text-green-700' :
-                  job.status === 'needs_review' ? 'bg-orange-100 text-orange-700' :
-                    'bg-blue-100 text-blue-700'
-                }`}>
-                {job.status === 'queued' ? 'AI解析中' : job.status}
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${getStatusColor(job.status)}`}>
+                {getStatusLabel(job.status)}
               </span>
             </div>
 

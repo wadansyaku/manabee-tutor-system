@@ -25,3 +25,21 @@ export const normalizeHomeworkItems = (lessonDateIso: string, items: HomeworkIte
     dueDate: resolveDueDate(lessonDateIso, item),
   }));
 };
+
+// Check if a due date is overdue (past)
+export const isOverdue = (dueDateIso: string): boolean => {
+  const daysRemaining = DateUtils.getDaysRemaining(dueDateIso, true);
+  return daysRemaining < 0;
+};
+
+// Check if a due date is due today
+export const isDueToday = (dueDateIso: string): boolean => {
+  const daysRemaining = DateUtils.getDaysRemaining(dueDateIso, true);
+  return daysRemaining === 0;
+};
+
+// Check if a due date is upcoming (within N days)
+export const isDueSoon = (dueDateIso: string, withinDays: number = 3): boolean => {
+  const daysRemaining = DateUtils.getDaysRemaining(dueDateIso, true);
+  return daysRemaining >= 0 && daysRemaining <= withinDays;
+};

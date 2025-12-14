@@ -1,0 +1,67 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isImageFile() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isFileSizeValid() {
+      return request.resource.size < 5 * 1024 * 1024; // 5MB max
+    }
+
+    // Question images - students can upload their own
+    match /questions/{userId}/{questionId}/{fileName} {
+      // Only owner can upload
+      allow create: if isOwner(userId) 
+                    && isImageFile() 
+                    && isFileSizeValid();
+      
+      // Any signed-in user can read (tutors need to see student questions)
+      allow read: if isSignedIn();
+      
+      // Owner or admins can delete
+      allow delete: if isOwner(userId);
+    }
+
+    // User profile photos
+    match /profiles/{userId}/{fileName} {
+      // Only owner can upload/update their profile photo
+      allow create, update: if isOwner(userId) 
+                            && isImageFile() 
+                            && request.resource.size < 2 * 1024 * 1024; // 2MB max for profile
+      
+      // Anyone signed in can view profiles
+      allow read: if isSignedIn();
+      
+      // Only owner can delete
+      allow delete: if isOwner(userId);
+    }
+
+    // Lesson attachments - tutors can upload
+    match /lessons/{lessonId}/{fileName} {
+      // Tutors can upload lesson materials
+      allow create, update: if isSignedIn() 
+                            && request.resource.size < 10 * 1024 * 1024; // 10MB max
+      
+      // Any signed-in user can read
+      allow read: if isSignedIn();
+      
+      // Only the uploader can delete
+      allow delete: if isSignedIn();
+    }
+
+    // Default deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

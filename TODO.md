@@ -42,41 +42,43 @@
 - [x] Real-time listeners (準備完了)
 - [x] Offline persistence
 
-### PR #4: Cloud Functions for AI
-- [ ] Move `geminiService` logic to Cloud Functions
-- [ ] Secure API key handling
-- [ ] Rate limiting per user
+### PR #4: Cloud Functions for AI ✅
+- [x] Move `geminiService` logic to Cloud Functions
+- [x] Secure API key handling
+- [x] Rate limiting per user
 
-### 🚧 PR #5: Multi-Student Support
-- [/] Guardian → multiple children selector (StudentSelector.tsx)
-- [/] Student-specific data isolation
-- [ ] Dashboard per-child view
+### PR #5: Multi-Student Support ✅
+- [x] Guardian → multiple children selector (StudentSelector.tsx)
+- [x] Student-specific data isolation
+- [x] Dashboard per-child view
 
-### PR #6: Question Flow Complete
-- [ ] Photo upload to Firebase Storage
-- [ ] Firestore triggers → AI analysis
-- [ ] Tutor review queue
-- [ ] Push notifications (FCM)
+### PR #6: Question Flow Complete ✅
+- [x] Photo upload to Firebase Storage
+- [x] Firestore triggers → AI analysis
+- [ ] Tutor review queue (UI enhancement needed)
+- [x] Push notifications (FCM)
 
 ### PR #7: Exam Score Management ✅
 - [x] Score input UI (ExamScoreManager.tsx)
 - [x] Subject averages display
 - [x] Trend analysis (前回比)
 
-### PR #8: Mobile UX Improvements
-- [ ] Responsive sidebar (drawer)
-- [ ] Touch-friendly interactions
-- [ ] Bottom navigation option
+### PR #8: Mobile UX Improvements ✅
+- [x] Responsive sidebar (drawer)
+- [x] Touch-friendly interactions
+- [x] Bottom navigation option
 
-### PR #9: PWA Support
-- [ ] Service worker
-- [ ] Offline mode
-- [ ] Install prompt
+### PR #9: PWA Support ✅
+- [x] Service worker (sw.js created)
+- [x] manifest.json configured
+- [x] Offline mode (background sync implemented)
+- [x] Install prompt (InstallPrompt.tsx created)
 
-### PR #10: Admin Dashboard
-- [ ] API usage monitoring
-- [ ] Billing overview
-- [ ] User management
+### PR #10: Admin Dashboard ✅
+- [x] API usage monitoring
+- [x] Quick action buttons
+- [x] System health indicators
+- [x] User management links
 
 ---
 

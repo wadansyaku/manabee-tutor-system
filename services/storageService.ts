@@ -257,30 +257,240 @@ class LocalDataStore implements DataStore {
   }
 }
 
-// --- Firebase Stub Implementation ---
+// --- Firebase Implementation with Local Cache ---
+// Uses localStorage as cache, syncs with Firestore in background
+// This allows the sync API to work while Firebase ops are async
 class FirebaseDataStore implements DataStore {
-  generateId(): string { throw new Error("Firebase Not Implemented"); }
+  private cache = {
+    users: null as LocalUser[] | null,
+    schools: null as StudentSchool[] | null,
+    lesson: null as Lesson | null,
+    questions: null as QuestionJob[] | null,
+    logs: null as AuditLog[] | null,
+  };
 
-  loadUsers(): LocalUser[] { throw new Error("Firebase Not Implemented"); }
-  saveUsers(users: LocalUser[]): void { throw new Error("Firebase Not Implemented"); }
-  login(email: string, password?: string): { success: boolean, user?: User, error?: string } { throw new Error("Firebase Not Implemented"); }
-  changePassword(userId: string, newPassword: string): boolean { throw new Error("Firebase Not Implemented"); }
+  private localStore = new LocalDataStore(); // Fallback to local for caching
 
-  loadSchools(): StudentSchool[] { throw new Error("Firebase Not Implemented"); }
-  saveSchools(schools: StudentSchool[]): void { throw new Error("Firebase Not Implemented"); }
+  constructor() {
+    // Initialize cache from localStorage
+    this.cache.users = this.localStore.loadUsers();
+    this.cache.schools = this.localStore.loadSchools();
+    this.cache.lesson = this.localStore.loadLesson();
+    this.cache.questions = this.localStore.loadQuestions();
+    this.cache.logs = this.localStore.loadLogs();
 
-  loadLesson(): Lesson { throw new Error("Firebase Not Implemented"); }
-  saveLesson(lesson: Lesson): void { throw new Error("Firebase Not Implemented"); }
+    // Kick off async sync with Firestore (fire and forget)
+    this.syncFromFirestore().catch(console.error);
+  }
 
-  loadQuestions(): QuestionJob[] { throw new Error("Firebase Not Implemented"); }
-  saveQuestion(question: QuestionJob): void { throw new Error("Firebase Not Implemented"); }
+  // Background sync from Firestore to local cache
+  private async syncFromFirestore() {
+    try {
+      const firebaseService = await import('./firebaseService');
+      if (!firebaseService.isFirebaseConfigured()) return;
 
-  loadLogs(): AuditLog[] { throw new Error("Firebase Not Implemented"); }
-  addLog(user: User, action: string, summary: string): void { throw new Error("Firebase Not Implemented"); }
+      // Sync schools for all known students
+      const s1Schools = await firebaseService.firestoreOperations.getSchools('s1');
+      const s2Schools = await firebaseService.firestoreOperations.getSchools('s2');
+      const allSchools = [...s1Schools, ...s2Schools];
+      if (allSchools.length > 0) {
+        this.cache.schools = allSchools;
+        localStorage.setItem(STORAGE_KEY_SCHOOLS, JSON.stringify(allSchools));
+      }
 
-  exportData(): string { throw new Error("Firebase Not Implemented"); }
-  importData(jsonStr: string): boolean { throw new Error("Firebase Not Implemented"); }
-  resetData(): void { throw new Error("Firebase Not Implemented"); }
+      // Sync questions
+      const questions = await firebaseService.firestoreOperations.getQuestions();
+      if (questions.length > 0) {
+        this.cache.questions = questions;
+        localStorage.setItem(STORAGE_KEY_QUESTIONS, JSON.stringify(questions));
+      }
+
+      // Sync lesson
+      const lesson = await firebaseService.firestoreOperations.getLesson('l1');
+      if (lesson) {
+        this.cache.lesson = lesson;
+        localStorage.setItem(STORAGE_KEY_LESSONS, JSON.stringify(lesson));
+      }
+
+      // Sync audit logs
+      const logs = await firebaseService.firestoreOperations.getAuditLogs(100);
+      if (logs.length > 0) {
+        this.cache.logs = logs;
+        localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
+      }
+
+      console.log('[Firebase] Synced from Firestore');
+    } catch (err) {
+      console.warn('[Firebase] Sync failed, using local cache:', err);
+    }
+  }
+
+  generateId(): string {
+    return Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+  }
+
+  // Users (use local for now, Firebase Auth handles real users)
+  loadUsers(): LocalUser[] {
+    return this.cache.users || this.localStore.loadUsers();
+  }
+
+  saveUsers(users: LocalUser[]): void {
+    this.cache.users = users;
+    this.localStore.saveUsers(users);
+  }
+
+  login(email: string, password?: string): { success: boolean, user?: User, error?: string } {
+    // For MVP, use local login (Firebase Auth would be used in full production)
+    return this.localStore.login(email, password);
+  }
+
+  changePassword(userId: string, newPassword: string): boolean {
+    const result = this.localStore.changePassword(userId, newPassword);
+    this.cache.users = this.localStore.loadUsers();
+    return result;
+  }
+
+  // Schools
+  loadSchools(): StudentSchool[] {
+    return this.cache.schools || this.localStore.loadSchools();
+  }
+
+  saveSchools(schools: StudentSchool[]): void {
+    this.cache.schools = schools;
+    this.localStore.saveSchools(schools);
+
+    // Async sync to Firestore
+    this.syncSchoolsToFirestore(schools).catch(console.error);
+  }
+
+  private async syncSchoolsToFirestore(schools: StudentSchool[]) {
+    try {
+      const firebaseService = await import('./firebaseService');
+      if (!firebaseService.isFirebaseConfigured()) return;
+
+      for (const school of schools) {
+        await firebaseService.firestoreOperations.saveSchool(school);
+      }
+      console.log('[Firebase] Schools synced to Firestore');
+    } catch (err) {
+      console.warn('[Firebase] School sync failed:', err);
+    }
+  }
+
+  // Lesson
+  loadLesson(): Lesson {
+    return this.cache.lesson || this.localStore.loadLesson();
+  }
+
+  saveLesson(lesson: Lesson): void {
+    this.cache.lesson = lesson;
+    this.localStore.saveLesson(lesson);
+
+    // Async sync to Firestore
+    this.syncLessonToFirestore(lesson).catch(console.error);
+  }
+
+  private async syncLessonToFirestore(lesson: Lesson) {
+    try {
+      const firebaseService = await import('./firebaseService');
+      if (!firebaseService.isFirebaseConfigured()) return;
+
+      await firebaseService.firestoreOperations.saveLesson(lesson);
+      console.log('[Firebase] Lesson synced to Firestore');
+    } catch (err) {
+      console.warn('[Firebase] Lesson sync failed:', err);
+    }
+  }
+
+  // Questions
+  loadQuestions(): QuestionJob[] {
+    return this.cache.questions || this.localStore.loadQuestions();
+  }
+
+  saveQuestion(question: QuestionJob): void {
+    const questions = this.loadQuestions();
+    const index = questions.findIndex(q => q.id === question.id);
+    const updated = index >= 0
+      ? questions.map(q => q.id === question.id ? question : q)
+      : [question, ...questions];
+
+    this.cache.questions = updated;
+    localStorage.setItem(STORAGE_KEY_QUESTIONS, JSON.stringify(updated));
+
+    // Async sync to Firestore
+    this.syncQuestionToFirestore(question).catch(console.error);
+  }
+
+  private async syncQuestionToFirestore(question: QuestionJob) {
+    try {
+      const firebaseService = await import('./firebaseService');
+      if (!firebaseService.isFirebaseConfigured()) return;
+
+      await firebaseService.firestoreOperations.saveQuestion(question);
+      console.log('[Firebase] Question synced to Firestore');
+    } catch (err) {
+      console.warn('[Firebase] Question sync failed:', err);
+    }
+  }
+
+  // Logs
+  loadLogs(): AuditLog[] {
+    return this.cache.logs || this.localStore.loadLogs();
+  }
+
+  addLog(user: User, action: string, summary: string): void {
+    const log: AuditLog = {
+      id: this.generateId(),
+      at: new Date().toISOString(),
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      action,
+      summary
+    };
+
+    const logs = this.loadLogs();
+    const updated = [log, ...logs].slice(0, 100);
+    this.cache.logs = updated;
+    localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(updated));
+
+    // Async sync to Firestore
+    this.syncLogToFirestore(log).catch(console.error);
+  }
+
+  private async syncLogToFirestore(log: AuditLog) {
+    try {
+      const firebaseService = await import('./firebaseService');
+      if (!firebaseService.isFirebaseConfigured()) return;
+
+      await firebaseService.firestoreOperations.addAuditLog(log);
+    } catch (err) {
+      console.warn('[Firebase] Log sync failed:', err);
+    }
+  }
+
+  // Backup operations
+  exportData(): string {
+    return JSON.stringify({
+      version: 2,
+      mode: 'firebase',
+      exportedAt: new Date().toISOString(),
+      schools: this.loadSchools(),
+      logs: this.loadLogs(),
+      lesson: this.loadLesson(),
+      questions: this.loadQuestions(),
+      users: this.loadUsers()
+    }, null, 2);
+  }
+
+  importData(jsonStr: string): boolean {
+    return this.localStore.importData(jsonStr);
+  }
+
+  resetData(): void {
+    localStorage.clear();
+    window.location.reload();
+  }
 }
 
 // --- Injection Logic ---
