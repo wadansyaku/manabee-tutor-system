@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { QuestionJob, User, UserRole } from '../types';
 import { StorageService, DateUtils } from '../services/storageService';
+import { uploadQuestionPhoto, compressImage } from '../services/photoStorageService';
 import { CheckCircleIcon, MicrophoneIcon } from './icons';
 
 interface QuestionBoardProps {
@@ -11,22 +12,23 @@ interface QuestionBoardProps {
 
 export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, questions, onUpdate }) => {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const [newQuestionSubject, setNewQuestionSubject] = useState('算数');
 
   // Strict Limit: Student can only post 3 questions per day
   const todayQuestions = questions.filter(q => {
     const qDate = new Date(q.createdAt);
     const now = new Date();
-    return q.studentId === currentUser.id && 
-           qDate.getDate() === now.getDate() && 
-           qDate.getMonth() === now.getMonth() && 
-           qDate.getFullYear() === now.getFullYear();
+    return q.studentId === currentUser.id &&
+      qDate.getDate() === now.getDate() &&
+      qDate.getMonth() === now.getMonth() &&
+      qDate.getFullYear() === now.getFullYear();
   });
-  
+
   const dailyLimit = 3;
   const remainingLimit = Math.max(0, dailyLimit - todayQuestions.length);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -35,23 +37,50 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
       return;
     }
 
-    // Mock Upload: Convert to Base64
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const base64 = ev.target?.result as string;
+    setIsUploading(true);
+    setUploadProgress('画像を処理中...');
+
+    try {
+      // Compress image if it's large (over 1MB)
+      let fileToUpload: File | Blob = file;
+      if (file.size > 1024 * 1024) {
+        setUploadProgress('画像を圧縮中...');
+        fileToUpload = await compressImage(file, 1200, 0.8);
+      }
+
+      const questionId = StorageService.generateId();
+
+      setUploadProgress('アップロード中...');
+      const imageUrl = await uploadQuestionPhoto(
+        fileToUpload instanceof File ? fileToUpload : new File([fileToUpload], file.name, { type: 'image/jpeg' }),
+        currentUser.id,
+        questionId
+      );
+
       const newJob: QuestionJob = {
-        id: StorageService.generateId(),
-        studentId: currentUser.id, // Assume current user is student or doing on behalf
+        id: questionId,
+        studentId: currentUser.id,
         subject: newQuestionSubject,
         createdAt: new Date().toISOString(),
-        questionImageUrl: base64,
-        status: 'queued', // Backend (Functions) would pick this up
+        questionImageUrl: imageUrl,
+        status: 'queued',
       };
+
       StorageService.saveQuestion(newJob);
       StorageService.addLog(currentUser, 'question_upload', `${newQuestionSubject}の質問をアップロードしました`);
-      onUpdate();
-    };
-    reader.readAsDataURL(file);
+
+      setUploadProgress('完了！');
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadProgress('');
+        onUpdate();
+      }, 500);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('アップロードに失敗しました。もう一度お試しください。');
+      setIsUploading(false);
+      setUploadProgress('');
+    }
   };
 
   const handleTutorReview = (job: QuestionJob, comment: string) => {
@@ -66,7 +95,7 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
   };
 
   // Filter View
-  const viewableQuestions = currentUser.role === UserRole.TUTOR 
+  const viewableQuestions = currentUser.role === UserRole.TUTOR
     ? questions // Tutor sees all
     : questions.filter(q => q.studentId === currentUser.id); // Student/Guardian sees own
 
@@ -81,42 +110,57 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
             </p>
           )}
         </div>
-        
+
         {currentUser.role !== UserRole.TUTOR && (
           <div className="relative">
-            <input 
-              type="file" 
-              accept="image/*" 
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               onChange={handleFileUpload}
-              disabled={remainingLimit <= 0}
+              disabled={remainingLimit <= 0 || isUploading}
             />
-            <button 
-              className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold shadow-md transition-all ${
-                remainingLimit > 0 
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:scale-105' 
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
+            <button
+              disabled={isUploading}
+              className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold shadow-md transition-all ${isUploading
+                  ? 'bg-indigo-400 text-white cursor-wait'
+                  : remainingLimit > 0
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:scale-105'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
             >
-              <div className="text-xl">📷</div>
-              質問する
+              {isUploading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-sm">{uploadProgress}</span>
+                </>
+              ) : (
+                <>
+                  <div className="text-xl">📷</div>
+                  質問する
+                </>
+              )}
             </button>
           </div>
         )}
       </div>
 
       {currentUser.role !== UserRole.TUTOR && (
-         <div className="flex gap-2 mb-4">
-            {['算数', '国語', '理科', '社会'].map(sub => (
-              <button
-                key={sub}
-                onClick={() => setNewQuestionSubject(sub)}
-                className={`px-3 py-1 text-xs rounded-full border ${newQuestionSubject === sub ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200'}`}
-              >
-                {sub}
-              </button>
-            ))}
-         </div>
+        <div className="flex gap-2 mb-4">
+          {['算数', '国語', '理科', '社会'].map(sub => (
+            <button
+              key={sub}
+              onClick={() => setNewQuestionSubject(sub)}
+              className={`px-3 py-1 text-xs rounded-full border ${newQuestionSubject === sub ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200'}`}
+            >
+              {sub}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* Board */}
@@ -132,15 +176,14 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
             {/* Header */}
             <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
               <span className="text-xs font-bold bg-white px-2 py-0.5 rounded border border-gray-200">{job.subject}</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                job.status === 'done' ? 'bg-green-100 text-green-700' :
-                job.status === 'needs_review' ? 'bg-orange-100 text-orange-700' :
-                'bg-blue-100 text-blue-700'
-              }`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${job.status === 'done' ? 'bg-green-100 text-green-700' :
+                  job.status === 'needs_review' ? 'bg-orange-100 text-orange-700' :
+                    'bg-blue-100 text-blue-700'
+                }`}>
                 {job.status === 'queued' ? 'AI解析中' : job.status}
               </span>
             </div>
-            
+
             {/* Image Area */}
             <div className="aspect-video bg-gray-100 relative group cursor-pointer">
               <img src={job.questionImageUrl} alt="Question" className="w-full h-full object-cover" />
@@ -152,7 +195,7 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
             {/* Content */}
             <div className="p-4 flex-1 flex flex-col gap-3">
               <p className="text-xs text-gray-400">{DateUtils.formatDate(job.createdAt)} {DateUtils.formatTime(job.createdAt)}</p>
-              
+
               {/* Stub for AI Explanation */}
               {job.aiExplanation ? (
                 <div className="bg-indigo-50 p-3 rounded text-sm text-indigo-900">
@@ -160,35 +203,35 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
                   {job.aiExplanation}
                 </div>
               ) : (
-                 <div className="animate-pulse flex space-x-4">
-                   <div className="flex-1 space-y-2 py-1">
-                     <div className="h-2 bg-gray-200 rounded"></div>
-                     <div className="h-2 bg-gray-200 rounded w-5/6"></div>
-                   </div>
-                 </div>
+                <div className="animate-pulse flex space-x-4">
+                  <div className="flex-1 space-y-2 py-1">
+                    <div className="h-2 bg-gray-200 rounded"></div>
+                    <div className="h-2 bg-gray-200 rounded w-5/6"></div>
+                  </div>
+                </div>
               )}
 
               {/* Tutor Review Area */}
               {job.status === 'done' && job.tutorComment && (
-                 <div className="bg-green-50 p-3 rounded text-sm text-green-900 border-l-4 border-green-400">
-                   <span className="font-bold text-xs block text-green-600 mb-1">先生コメント</span>
-                   {job.tutorComment}
-                 </div>
+                <div className="bg-green-50 p-3 rounded text-sm text-green-900 border-l-4 border-green-400">
+                  <span className="font-bold text-xs block text-green-600 mb-1">先生コメント</span>
+                  {job.tutorComment}
+                </div>
               )}
             </div>
 
             {/* Action Footer */}
             {currentUser.role === UserRole.TUTOR && job.status !== 'done' && (
               <div className="p-3 border-t border-gray-100 bg-gray-50">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="解説を一言..."
                   className="w-full text-xs border-gray-300 rounded mb-2"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleTutorReview(job, (e.target as HTMLInputElement).value);
                   }}
                 />
-                <button 
+                <button
                   className="w-full bg-indigo-600 text-white text-xs py-2 rounded font-bold hover:bg-indigo-700"
                   onClick={(e) => {
                     const input = (e.currentTarget.previousElementSibling as HTMLInputElement).value;
