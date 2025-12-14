@@ -222,12 +222,18 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
     // Determine suffix based on name (simple heuristic)
     const nameSuffix = selectedChild?.name?.endsWith('子') ? 'ちゃん' : 'くん';
 
-    // Mock child stats (would be per-child in real implementation)
+    // Calculate dynamic stats from actual data
+    const totalHomework = homeworkItems.length;
+    const completedCount = completedHomework.length;
+    const estimatedMinutes = homeworkItems.reduce((sum, h) => sum + (h.estimated_minutes || 0), 0);
+    const completedMinutes = completedHomework.reduce((sum, h) => sum + (h.estimated_minutes || 0), 0);
+
+    // Dynamic child stats based on real data
     const childStats = {
-        lastStudy: '2時間前',
-        weeklyHours: 12.5,
-        weeklyProblems: 47,
-        streak: 5
+        lastStudy: lesson.scheduledAt ? DateUtils.formatDate(lesson.scheduledAt) : '未記録',
+        weeklyHours: Math.round(completedMinutes / 60 * 10) / 10 || 0,
+        weeklyProblems: completedCount,
+        streak: completedCount > 0 ? Math.min(completedCount, 7) : 0, // Simple heuristic
     };
 
     return (
@@ -343,11 +349,16 @@ const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson
     // Get selected student info
     const selectedStudent = MOCK_STUDENTS.find(s => s.id === studentId) || MOCK_STUDENTS[0];
 
-    // Mock tutor data
+    // Calculate dynamic stats from actual data
+    const homeworkItems = lesson.aiHomework?.items || [];
+    const completedHomework = homeworkItems.filter(h => h.isCompleted);
+    const estimatedMinutes = completedHomework.reduce((sum, h) => sum + (h.estimated_minutes || 0), 0);
+
+    // Dynamic tutor stats
     const tutorStats = {
-        todayClasses: 3,
+        todayClasses: 1, // Default for MVP
         pendingReviews: pendingQuestions.length,
-        thisMonthHours: 48,
+        thisMonthHours: Math.round(estimatedMinutes / 60 * 10) / 10 || 0,
         students: MOCK_STUDENTS.map(s => s.name)
     };
 
@@ -578,13 +589,23 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
                             <p className="text-xs text-green-600">接続済み</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-xl">
-                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                        <div>
-                            <p className="text-sm font-semibold text-yellow-800">Firebase</p>
-                            <p className="text-xs text-yellow-600">未接続 (ローカルモード)</p>
+                    {import.meta.env.VITE_APP_MODE === 'firebase' ? (
+                        <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            <div>
+                                <p className="text-sm font-semibold text-green-800">Firebase</p>
+                                <p className="text-xs text-green-600">接続済み (クラウドモード)</p>
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-xl">
+                            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                            <div>
+                                <p className="text-sm font-semibold text-yellow-800">Firebase</p>
+                                <p className="text-xs text-yellow-600">未接続 (ローカルモード)</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

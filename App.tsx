@@ -18,6 +18,8 @@ import { BottomNav } from './components/BottomNav';
 import { SystemSettings } from './components/admin/SystemSettings';
 import { UsageMonitor } from './components/admin/UsageMonitor';
 import { DatabaseSeeder } from './components/admin/DatabaseSeeder';
+// Tutor Components
+import { ReviewQueue } from './components/tutor/ReviewQueue';
 
 // --- Login Screen ---
 const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void }) => {
@@ -270,35 +272,37 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
         )}
 
         {/* Quick Login Buttons */}
-        <div className="mt-8 pt-6 border-t border-white/10">
-          <p className="text-white/40 text-xs mb-3 text-center">開発用クイックログイン</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => quickLogin('tutor@manabee.com')}
-              className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
-            >
-              <span className="text-lg">👨‍🏫</span> 講師
-            </button>
-            <button
-              onClick={() => quickLogin('student@manabee.com')}
-              className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
-            >
-              <span className="text-lg">👦</span> 生徒
-            </button>
-            <button
-              onClick={() => quickLogin('mom@manabee.com')}
-              className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
-            >
-              <span className="text-lg">👩</span> 保護者
-            </button>
-            <button
-              onClick={() => quickLogin('admin@manabee.com')}
-              className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
-            >
-              <span className="text-lg">⚙️</span> 管理者
-            </button>
+        {!isFirebaseMode && (
+          <div className="mt-8 pt-6 border-t border-white/10">
+            <p className="text-white/40 text-xs mb-3 text-center">開発用クイックログイン</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => quickLogin('tutor@manabee.com')}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
+              >
+                <span className="text-lg">👨‍🏫</span> 講師
+              </button>
+              <button
+                onClick={() => quickLogin('student@manabee.com')}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
+              >
+                <span className="text-lg">👦</span> 生徒
+              </button>
+              <button
+                onClick={() => quickLogin('mom@manabee.com')}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
+              >
+                <span className="text-lg">👩</span> 保護者
+              </button>
+              <button
+                onClick={() => quickLogin('admin@manabee.com')}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2"
+              >
+                <span className="text-lg">⚙️</span> 管理者
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* CSS Animations */}
@@ -540,7 +544,15 @@ export default function App() {
     refreshData();
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (import.meta.env.VITE_APP_MODE === 'firebase') {
+      try {
+        const { firebaseLogout } = await import('./services/firebaseService');
+        await firebaseLogout();
+      } catch (e) {
+        console.error('Logout failed', e);
+      }
+    }
     setUser(null);
     setViewAsStudent(false);
   };
@@ -573,6 +585,59 @@ export default function App() {
   };
 
   // Main Render
+  const [isLoadingAuth, setIsLoadingAuth] = useState(import.meta.env.VITE_APP_MODE === 'firebase');
+
+  useEffect(() => {
+    const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+    if (!isFirebaseMode) return;
+
+    // Async import to avoid loading Firebase in local mode
+    const initAuth = async () => {
+      try {
+        const { onAuthChange, getUser } = await import('./services/firebaseService');
+        const unsubscribe = await onAuthChange(async (firebaseUser: any) => {
+          if (firebaseUser) {
+            // User is signed in
+            console.log('Firebase User detected:', firebaseUser.uid);
+            const userProfile = await getUser(firebaseUser.uid);
+            if (userProfile) {
+              setUser(userProfile);
+              refreshData(); // Fetch initial data
+            } else {
+              // Fallback if user exists in Auth but not in Firestore (rare race condition)
+              setUser({
+                id: firebaseUser.uid,
+                name: firebaseUser.email?.split('@')[0] || 'User',
+                email: firebaseUser.email || '',
+                role: UserRole.STUDENT, // Default
+                isInitialPassword: false
+              });
+            }
+          } else {
+            // User is signed out
+            setUser(null);
+          }
+          setIsLoadingAuth(false);
+        });
+        return unsubscribe;
+      } catch (error) {
+        console.error('Auth initialization failed', error);
+        setIsLoadingAuth(false);
+      }
+    };
+
+    initAuth();
+  }, []);
+
+  if (isLoadingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-600 mb-4"></div>
+        <p className="text-gray-600 font-medium">Manabeeを起動中...</p>
+      </div>
+    );
+  }
+
   if (!user) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
@@ -615,7 +680,11 @@ export default function App() {
           } />
 
           <Route path="/questions" element={
-            <QuestionBoard currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
+            effectiveUser.role === UserRole.TUTOR ? (
+              <ReviewQueue currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
+            ) : (
+              <QuestionBoard currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
+            )
           } />
 
           <Route path="/homework" element={

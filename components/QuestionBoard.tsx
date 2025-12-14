@@ -302,25 +302,37 @@ export const QuestionBoard: React.FC<QuestionBoardProps> = ({ currentUser, quest
             <div className="p-4 flex-1 flex flex-col gap-3">
               <p className="text-xs text-gray-400">{DateUtils.formatDate(job.createdAt)} {DateUtils.formatTime(job.createdAt)}</p>
 
-              {/* Stub for AI Explanation */}
+              {/* AI Explanation with collapsible preview */}
               {job.aiExplanation ? (
-                <div className="bg-indigo-50 p-3 rounded text-sm text-indigo-900">
-                  <span className="font-bold text-xs block text-indigo-400 mb-1">AI解説</span>
-                  {job.aiExplanation}
-                </div>
+                <details className="bg-indigo-50 rounded-xl overflow-hidden" open={job.status !== 'done'}>
+                  <summary className="cursor-pointer p-3 text-sm font-bold text-indigo-600 hover:bg-indigo-100 transition-colors flex items-center gap-2">
+                    <span>✨</span> AI解説プレビュー
+                    <span className="ml-auto text-xs text-indigo-400">{job.status === 'done' ? '(クリックで展開)' : ''}</span>
+                  </summary>
+                  <div className="p-3 pt-0 text-sm text-indigo-900 border-t border-indigo-100">
+                    {job.aiExplanation}
+                  </div>
+                </details>
               ) : (
-                <div className="animate-pulse flex space-x-4">
-                  <div className="flex-1 space-y-2 py-1">
-                    <div className="h-2 bg-gray-200 rounded"></div>
-                    <div className="h-2 bg-gray-200 rounded w-5/6"></div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                    <div className="animate-spin h-4 w-4 border-2 border-gray-300 border-t-indigo-500 rounded-full"></div>
+                    AI解析中...
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-2 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-2 bg-gray-200 rounded w-5/6 animate-pulse"></div>
                   </div>
                 </div>
               )}
 
-              {/* Tutor Review Area */}
+              {/* Tutor Comment (for completed items) */}
               {job.status === 'done' && job.tutorComment && (
-                <div className="bg-green-50 p-3 rounded text-sm text-green-900 border-l-4 border-green-400">
-                  <span className="font-bold text-xs block text-green-600 mb-1">先生コメント</span>
+                <div className="bg-green-50 p-3 rounded-xl text-sm text-green-900 border-l-4 border-green-400">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-green-600">👨‍🏫</span>
+                    <span className="font-bold text-xs text-green-600">先生コメント</span>
+                  </div>
                   {job.tutorComment}
                 </div>
               )}

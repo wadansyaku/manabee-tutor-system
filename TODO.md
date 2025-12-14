@@ -55,7 +55,7 @@
 ### PR #6: Question Flow Complete ✅
 - [x] Photo upload to Firebase Storage
 - [x] Firestore triggers → AI analysis
-- [ ] Tutor review queue (UI enhancement needed)
+- [x] Tutor review queue (UI enhancement needed)
 - [x] Push notifications (FCM)
 
 ### PR #7: Exam Score Management ✅

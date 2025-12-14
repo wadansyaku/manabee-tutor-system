@@ -260,6 +260,8 @@ class LocalDataStore implements DataStore {
 // --- Firebase Implementation with Local Cache ---
 // Uses localStorage as cache, syncs with Firestore in background
 // This allows the sync API to work while Firebase ops are async
+// --- Firebase Implementation with Local Cache ---
+// Uses localStorage as cache, syncs with Firestore in background
 class FirebaseDataStore implements DataStore {
   private cache = {
     users: null as LocalUser[] | null,
@@ -279,57 +281,107 @@ class FirebaseDataStore implements DataStore {
     this.cache.questions = this.localStore.loadQuestions();
     this.cache.logs = this.localStore.loadLogs();
 
-    // Kick off async sync with Firestore (fire and forget)
-    this.syncFromFirestore().catch(console.error);
+    // Listen for auth changes to trigger sync
+    this.initAuthListener();
   }
 
-  // Background sync from Firestore to local cache
-  private async syncFromFirestore() {
+  private async initAuthListener() {
     try {
       const firebaseService = await import('./firebaseService');
       if (!firebaseService.isFirebaseConfigured()) return;
 
-      // Sync schools for all known students
-      const s1Schools = await firebaseService.firestoreOperations.getSchools('s1');
-      const s2Schools = await firebaseService.firestoreOperations.getSchools('s2');
-      const allSchools = [...s1Schools, ...s2Schools];
-      if (allSchools.length > 0) {
-        this.cache.schools = allSchools;
-        localStorage.setItem(STORAGE_KEY_SCHOOLS, JSON.stringify(allSchools));
+      firebaseService.onAuthChange(async (user) => {
+        if (user) {
+          console.log('[Firebase] User authenticated, syncing data...');
+          // Get full user profile
+          const profile = await firebaseService.getUser(user.uid);
+          if (profile) {
+            await this.syncUserData(profile);
+          }
+        } else {
+          console.log('[Firebase] User signed out');
+          // Optional: clear cache on logout? For now, keep it for offline viewing
+        }
+      });
+    } catch (e) {
+      console.warn('[Firebase] Auth listener failed', e);
+    }
+  }
+
+  private async syncUserData(user: User) {
+    if (user.role === UserRole.STUDENT) {
+      await this.syncStudentData(user.id);
+    } else if (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) {
+      // For guardians/tutors, we might want to sync all associated students
+      // For MVP, we'll brute force sync known mock IDs or implement a real relation later
+      // Currently just syncing 's1' and 's2' as a fallback if no specific logic exists
+      await this.syncStudentData('s1');
+      await this.syncStudentData('s2');
+    }
+
+    // Sync global/shared data
+    await this.syncSharedData();
+  }
+
+  private async syncStudentData(studentId: string) {
+    try {
+      const firebaseService = await import('./firebaseService');
+
+      // Sync schools
+      const schools = await firebaseService.firestoreOperations.getSchools(studentId);
+      if (schools.length > 0) {
+        // Merge with existing cache to avoid overwriting other students' data
+        const currentSchools = this.cache.schools || [];
+        const otherSchools = currentSchools.filter(s => s.studentId !== studentId);
+        const newSchools = [...otherSchools, ...schools];
+        this.cache.schools = newSchools;
+        localStorage.setItem(STORAGE_KEY_SCHOOLS, JSON.stringify(newSchools));
       }
 
       // Sync questions
-      const questions = await firebaseService.firestoreOperations.getQuestions();
+      const questions = await firebaseService.firestoreOperations.getQuestions(studentId);
       if (questions.length > 0) {
-        this.cache.questions = questions;
-        localStorage.setItem(STORAGE_KEY_QUESTIONS, JSON.stringify(questions));
+        const currentQuestions = this.cache.questions || [];
+        const otherQuestions = currentQuestions.filter(q => q.studentId !== studentId);
+        const newQuestions = [...otherQuestions, ...questions];
+        this.cache.questions = newQuestions;
+        localStorage.setItem(STORAGE_KEY_QUESTIONS, JSON.stringify(newQuestions));
       }
 
-      // Sync lesson
+    } catch (err) {
+      console.warn(`[Firebase] Sync failed for student ${studentId}:`, err);
+    }
+  }
+
+  private async syncSharedData() {
+    try {
+      const firebaseService = await import('./firebaseService');
+
+      // Sync lesson (Global for MVP? Or per student?)
+      // Assuming 'l1' is the main lesson for now
       const lesson = await firebaseService.firestoreOperations.getLesson('l1');
       if (lesson) {
         this.cache.lesson = lesson;
         localStorage.setItem(STORAGE_KEY_LESSONS, JSON.stringify(lesson));
       }
 
-      // Sync audit logs
+      // Sync logs
       const logs = await firebaseService.firestoreOperations.getAuditLogs(100);
       if (logs.length > 0) {
         this.cache.logs = logs;
         localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
       }
-
-      console.log('[Firebase] Synced from Firestore');
     } catch (err) {
-      console.warn('[Firebase] Sync failed, using local cache:', err);
+      console.warn('[Firebase] Shared data sync failed:', err);
     }
   }
+
 
   generateId(): string {
     return Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
   }
 
-  // Users (use local for now, Firebase Auth handles real users)
+  // Users
   loadUsers(): LocalUser[] {
     return this.cache.users || this.localStore.loadUsers();
   }
@@ -339,11 +391,15 @@ class FirebaseDataStore implements DataStore {
     this.localStore.saveUsers(users);
   }
 
+  // LOGIN: Now uses Real Firebase Auth
   login(email: string, password?: string): { success: boolean, user?: User, error?: string } {
-    // For MVP, use local login (Firebase Auth would be used in full production)
+    // NOTE: This synchronous method cannot await Firebase Auth.
+    // In App.tsx, we have a specific handling for Firebase mode that calls firebaseService directly.
+    // This method is kept for interface compatibility and Local mode fallback.
     return this.localStore.login(email, password);
   }
 
+  // CHANGE PASSWORD: Real Firebase Auth handled elsewhere, this is for local state
   changePassword(userId: string, newPassword: string): boolean {
     const result = this.localStore.changePassword(userId, newPassword);
     this.cache.users = this.localStore.loadUsers();
