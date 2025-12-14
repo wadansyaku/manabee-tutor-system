@@ -101,6 +101,63 @@ export const firebaseLogin = async (email: string, password: string): Promise<{ 
     }
 };
 
+// New user registration
+export const firebaseRegister = async (
+    email: string,
+    password: string,
+    name: string,
+    role: UserRole = UserRole.STUDENT
+): Promise<{ success: boolean; user?: User; error?: string }> => {
+    try {
+        const { auth, db } = await loadFirebaseModules();
+        const firebaseAuth = await import('firebase/auth');
+        const firebaseFirestore = await import('firebase/firestore');
+
+        const userCredential = await firebaseAuth.createUserWithEmailAndPassword(auth, email, password);
+
+        // Create user profile in Firestore
+        const newUser: User = {
+            id: userCredential.user.uid,
+            name: name || email.split('@')[0],
+            email: email,
+            role: role
+        };
+
+        await firebaseFirestore.setDoc(
+            firebaseFirestore.doc(db, 'users', userCredential.user.uid),
+            newUser
+        );
+
+        return { success: true, user: newUser };
+    } catch (error: any) {
+        return {
+            success: false,
+            error: error.code === 'auth/email-already-in-use' ? 'このメールアドレスは既に登録されています' :
+                error.code === 'auth/weak-password' ? 'パスワードは6文字以上にしてください' :
+                    error.code === 'auth/invalid-email' ? 'メールアドレスの形式が正しくありません' :
+                        error.message
+        };
+    }
+};
+
+// Password reset
+export const firebaseResetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const { auth } = await loadFirebaseModules();
+        const firebaseAuth = await import('firebase/auth');
+
+        await firebaseAuth.sendPasswordResetEmail(auth, email);
+        return { success: true };
+    } catch (error: any) {
+        return {
+            success: false,
+            error: error.code === 'auth/user-not-found' ? 'このメールアドレスは登録されていません' :
+                error.code === 'auth/invalid-email' ? 'メールアドレスの形式が正しくありません' :
+                    error.message
+        };
+    }
+};
+
 export const firebaseLogout = async () => {
     const { auth } = await loadFirebaseModules();
     const firebaseAuth = await import('firebase/auth');

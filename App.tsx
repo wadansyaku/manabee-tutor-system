@@ -23,16 +23,28 @@ import { ReviewQueue } from './components/tutor/ReviewQueue';
 
 // --- Login Screen ---
 const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void }) => {
+  const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login');
   const [step, setStep] = useState<'email' | 'password' | 'change_password'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.STUDENT);
   const [newPassword, setNewPassword] = useState('');
   const [tempUser, setTempUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Check if Firebase mode is enabled
   const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+
+  // Demo accounts for Firebase mode
+  const demoAccounts = [
+    { email: 'student@demo.manabee.jp', role: '生徒', icon: '👦', password: 'demo1234' },
+    { email: 'parent@demo.manabee.jp', role: '保護者', icon: '👩', password: 'demo1234' },
+    { email: 'tutor@demo.manabee.jp', role: '講師', icon: '👨‍🏫', password: 'demo1234' },
+    { email: 'admin@demo.manabee.jp', role: '管理者', icon: '⚙️', password: 'demo1234' },
+  ];
 
   const handleEmailSubmit = async () => {
     if (!email) {
@@ -108,6 +120,75 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     setIsLoading(false);
   };
 
+  const handleRegister = async () => {
+    if (!email || !password || !name) {
+      setError('全ての項目を入力してください');
+      return;
+    }
+    if (password.length < 6) {
+      setError('パスワードは6文字以上にしてください');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const { firebaseRegister } = await import('./services/firebaseService');
+      const res = await firebaseRegister(email, password, name, selectedRole);
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      } else {
+        setError(res.error || '登録に失敗しました');
+      }
+    } catch (err: any) {
+      setError(err.message || '登録エラー');
+    }
+    setIsLoading(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      setError('メールアドレスを入力してください');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const { firebaseResetPassword } = await import('./services/firebaseService');
+      const res = await firebaseResetPassword(email);
+      if (res.success) {
+        setSuccess('パスワードリセットのメールを送信しました。メールをご確認ください。');
+        setTimeout(() => {
+          setMode('login');
+          setSuccess(null);
+        }, 3000);
+      } else {
+        setError(res.error || 'リセットに失敗しました');
+      }
+    } catch (err: any) {
+      setError(err.message || 'リセットエラー');
+    }
+    setIsLoading(false);
+  };
+
+  const handleDemoLogin = async (account: typeof demoAccounts[0]) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { firebaseLogin } = await import('./services/firebaseService');
+      const res = await firebaseLogin(account.email, account.password);
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      } else {
+        setError(res.error || 'デモログインに失敗しました');
+      }
+    } catch (err: any) {
+      setError(err.message || 'デモログインエラー');
+    }
+    setIsLoading(false);
+  };
+
   const handleChangePassword = async () => {
     if (!newPassword || newPassword.length < 4) {
       setError('パスワードは4文字以上にしてください');
@@ -135,6 +216,12 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     setError(null);
   };
 
+  const roleOptions = [
+    { value: UserRole.STUDENT, label: '生徒', icon: '👦' },
+    { value: UserRole.GUARDIAN, label: '保護者', icon: '👩' },
+    { value: UserRole.TUTOR, label: '講師', icon: '👨‍🏫' },
+  ];
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4 relative overflow-hidden">
@@ -148,7 +235,7 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
       {/* Login Card */}
       <div className="relative bg-white/10 backdrop-blur-xl p-8 rounded-3xl shadow-2xl w-full max-w-md border border-white/20">
         {/* Logo & Title */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl shadow-lg mb-4 transform hover:scale-105 transition-transform">
             <span className="text-3xl">🐝</span>
           </div>
@@ -156,9 +243,159 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
           <p className="text-white/60 text-sm">自律学習を支援するプラットフォーム</p>
         </div>
 
-        {/* Email Step */}
-        {step === 'email' && (
-          <div className="space-y-5 animate-fade-in">
+        {/* Mode Tabs (Firebase mode only) */}
+        {isFirebaseMode && mode !== 'reset' && (
+          <div className="flex bg-white/5 rounded-xl p-1 mb-6">
+            <button
+              onClick={() => { setMode('login'); setStep('email'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'login' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}
+            >
+              ログイン
+            </button>
+            <button
+              onClick={() => { setMode('register'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'register' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}
+            >
+              新規登録
+            </button>
+          </div>
+        )}
+
+        {/* Login Mode */}
+        {mode === 'login' && (
+          <>
+            {/* Email Step */}
+            {step === 'email' && (
+              <div className="space-y-5 animate-fade-in">
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">メールアドレス</label>
+                  <input
+                    type="email"
+                    className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()}
+                    disabled={isLoading}
+                  />
+                </div>
+                <button
+                  onClick={handleEmailSubmit}
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-4 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      確認中...
+                    </>
+                  ) : '次へ →'}
+                </button>
+              </div>
+            )}
+
+            {/* Password Step */}
+            {step === 'password' && (
+              <div className="space-y-5 animate-fade-in">
+                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                    {email[0]?.toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white/80 text-sm truncate">{email}</p>
+                  </div>
+                  <button onClick={() => setStep('email')} className="text-white/40 hover:text-white/80 text-xs">変更</button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">パスワード</label>
+                  <input
+                    type="password"
+                    className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handlePasswordSubmit()}
+                    autoFocus
+                    disabled={isLoading}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <button
+                  onClick={handlePasswordSubmit}
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-4 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      ログイン中...
+                    </>
+                  ) : 'ログイン'}
+                </button>
+
+                {/* Forgot password link */}
+                {isFirebaseMode && (
+                  <button
+                    onClick={() => setMode('reset')}
+                    className="w-full text-white/50 hover:text-white/80 text-sm transition-colors"
+                  >
+                    パスワードを忘れた方はこちら
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Change Password Step */}
+            {step === 'change_password' && (
+              <div className="space-y-5 animate-fade-in">
+                <div className="bg-amber-500/20 border border-amber-400/30 p-4 rounded-xl text-amber-200 text-sm flex items-start gap-3">
+                  <span className="text-xl">🔐</span>
+                  <p>セキュリティのため、初回ログイン時はパスワードの変更が必要です。</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">新しいパスワード</label>
+                  <input
+                    type="password"
+                    className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    autoFocus
+                    disabled={isLoading}
+                    placeholder="4文字以上"
+                  />
+                </div>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-xl font-bold hover:from-amber-600 hover:to-orange-600 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? '処理中...' : 'パスワードを変更'}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Register Mode */}
+        {mode === 'register' && (
+          <div className="space-y-4 animate-fade-in">
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">お名前</label>
+              <input
+                type="text"
+                className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="山田 太郎"
+                disabled={isLoading}
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-white/80 mb-2">メールアドレス</label>
               <input
@@ -167,98 +404,76 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()}
                 disabled={isLoading}
               />
             </div>
-            <button
-              onClick={handleEmailSubmit}
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-4 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  確認中...
-                </>
-              ) : '次へ →'}
-            </button>
-          </div>
-        )}
-
-        {/* Password Step */}
-        {step === 'password' && (
-          <div className="space-y-5 animate-fade-in">
-            <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                {email[0]?.toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white/80 text-sm truncate">{email}</p>
-              </div>
-              <button onClick={() => setStep('email')} className="text-white/40 hover:text-white/80 text-xs">変更</button>
-            </div>
-
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">パスワード</label>
+              <label className="block text-sm font-medium text-white/80 mb-2">パスワード（6文字以上）</label>
               <input
                 type="password"
                 className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handlePasswordSubmit()}
-                autoFocus
-                disabled={isLoading}
                 placeholder="••••••••"
+                disabled={isLoading}
               />
-              <p className="text-white/40 text-xs mt-2">※初期パスワードは "123" です</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">ロール</label>
+              <div className="grid grid-cols-3 gap-2">
+                {roleOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setSelectedRole(opt.value)}
+                    className={`p-3 rounded-xl border text-center transition-all ${selectedRole === opt.value ? 'bg-purple-500/30 border-purple-400 text-white' : 'bg-white/5 border-white/10 text-white/60 hover:text-white'}`}
+                  >
+                    <span className="text-xl block mb-1">{opt.icon}</span>
+                    <span className="text-xs">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             <button
-              onClick={handlePasswordSubmit}
+              onClick={handleRegister}
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-4 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  ログイン中...
-                </>
-              ) : 'ログイン'}
+              {isLoading ? '登録中...' : '新規登録'}
             </button>
           </div>
         )}
 
-        {/* Change Password Step */}
-        {step === 'change_password' && (
+        {/* Password Reset Mode */}
+        {mode === 'reset' && (
           <div className="space-y-5 animate-fade-in">
-            <div className="bg-amber-500/20 border border-amber-400/30 p-4 rounded-xl text-amber-200 text-sm flex items-start gap-3">
-              <span className="text-xl">🔐</span>
-              <p>セキュリティのため、初回ログイン時はパスワードの変更が必要です。</p>
+            <div className="text-center mb-4">
+              <span className="text-4xl">🔑</span>
+              <h2 className="text-xl font-bold text-white mt-2">パスワードリセット</h2>
+              <p className="text-white/60 text-sm mt-1">登録メールアドレスにリセットリンクを送信します</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">新しいパスワード</label>
+              <label className="block text-sm font-medium text-white/80 mb-2">メールアドレス</label>
               <input
-                type="password"
+                type="email"
                 className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-white/40 focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all outline-none"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                autoFocus
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="your@email.com"
                 disabled={isLoading}
-                placeholder="4文字以上"
               />
             </div>
             <button
-              onClick={handleChangePassword}
+              onClick={handleResetPassword}
               disabled={isLoading}
               className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-xl font-bold hover:from-amber-600 hover:to-orange-600 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? '処理中...' : 'パスワードを変更'}
+              {isLoading ? '送信中...' : 'リセットリンクを送信'}
+            </button>
+            <button
+              onClick={() => { setMode('login'); setStep('email'); }}
+              className="w-full text-white/50 hover:text-white/80 text-sm transition-colors"
+            >
+              ← ログインに戻る
             </button>
           </div>
         )}
@@ -271,7 +486,34 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
           </div>
         )}
 
-        {/* Quick Login Buttons */}
+        {/* Success Message */}
+        {success && (
+          <div className="mt-4 bg-green-500/20 border border-green-400/30 p-4 rounded-xl text-green-200 text-sm flex items-center gap-3">
+            <span className="text-xl">✅</span>
+            <p>{success}</p>
+          </div>
+        )}
+
+        {/* Demo Login Buttons (Firebase mode) */}
+        {isFirebaseMode && mode === 'login' && step === 'email' && (
+          <div className="mt-6 pt-6 border-t border-white/10">
+            <p className="text-white/40 text-xs mb-3 text-center">デモアカウントでログイン</p>
+            <div className="grid grid-cols-2 gap-2">
+              {demoAccounts.map(acc => (
+                <button
+                  key={acc.email}
+                  onClick={() => handleDemoLogin(acc)}
+                  disabled={isLoading}
+                  className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <span className="text-lg">{acc.icon}</span> {acc.role}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Login Buttons (Local mode) */}
         {!isFirebaseMode && (
           <div className="mt-8 pt-6 border-t border-white/10">
             <p className="text-white/40 text-xs mb-3 text-center">開発用クイックログイン</p>
@@ -322,6 +564,7 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     </div>
   );
 };
+
 
 
 // --- Layout & Nav ---
