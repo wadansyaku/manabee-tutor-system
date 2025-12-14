@@ -121,6 +121,21 @@ export const firestoreOperations = {
         return docSnap.exists() ? docSnap.data() as User : null;
     },
 
+    async getAllUsers(): Promise<User[]> {
+        const { db } = initializeFirebase();
+        const snapshot = await getDocs(collection(db, 'users'));
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as User));
+    },
+
+    async getUserByEmail(email: string): Promise<User | null> {
+        const { db } = initializeFirebase();
+        const q = query(collection(db, 'users'), where('email', '==', email));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return null;
+        const docData = snapshot.docs[0];
+        return { id: docData.id, ...docData.data() } as User;
+    },
+
     async updateUser(userId: string, data: Partial<User>): Promise<void> {
         const { db } = initializeFirebase();
         await updateDoc(doc(db, 'users', userId), data);

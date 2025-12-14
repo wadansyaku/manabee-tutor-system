@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Helper function to check user role from their profile
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'ADMIN';
+    }
+    
+    function isTutor() {
+      return isAuthenticated() && getUserRole() == 'TUTOR';
+    }
+    
+    function isGuardian() {
+      return isAuthenticated() && getUserRole() == 'GUARDIAN';
+    }
+    
+    function isStudent() {
+      return isAuthenticated() && getUserRole() == 'STUDENT';
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Anyone authenticated can read their own profile
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin() || isTutor());
+      // Only admins can create/update/delete users
+      allow create, update, delete: if isAdmin();
+      // Users can update their own password-related fields
+      allow update: if isOwner(userId) && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isInitialPassword']);
+    }
+    
+    // Schools collection (exam target schools)
+    match /schools/{schoolId} {
+      // Authenticated users can read schools for their students
+      allow read: if isAuthenticated();
+      // Tutors and admins can write schools
+      allow write: if isTutor() || isAdmin();
+    }
+    
+    // Lessons collection
+    match /lessons/{lessonId} {
+      // Authenticated users can read lessons
+      allow read: if isAuthenticated();
+      // Tutors can write lessons
+      allow write: if isTutor() || isAdmin();
+    }
+    
+    // Questions collection (photo questions from students)
+    match /questions/{questionId} {
+      // Students can read their own questions, tutors/admins can read all
+      allow read: if isAuthenticated() && 
+        (resource.data.studentId == request.auth.uid || isTutor() || isAdmin());
+      // Students can create questions
+      allow create: if isAuthenticated();
+      // Tutors can update questions (add comments, change status)
+      allow update: if isTutor() || isAdmin();
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+    
+    // Audit logs collection
+    match /audit_logs/{logId} {
+      // Only admins can read logs
+      allow read: if isAdmin();
+      // All authenticated users can create logs (for their own actions)
+      allow create: if isAuthenticated();
+      // No updates or deletes allowed
+      allow update, delete: if false;
+    }
+    
+    // Homework collection (future expansion)
+    match /homework/{homeworkId} {
+      allow read: if isAuthenticated();
+      allow write: if isTutor() || isAdmin();
+    }
+    
+    // Exam scores collection (future expansion)
+    match /exam_scores/{scoreId} {
+      allow read: if isAuthenticated();
+      allow write: if isTutor() || isAdmin();
+    }
+  }
+}

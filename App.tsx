@@ -3,12 +3,19 @@ import { HashRouter, Routes, Route, Link, useLocation, Navigate, useNavigate } f
 import { MOCK_LESSON, INITIAL_STUDENT_CONTEXT } from './constants';
 import { UserRole, Lesson, StudentSchool, AuditLog, User, QuestionJob } from './types';
 import { StorageService, DateUtils } from './services/storageService';
+import { AuthService, isFirebaseMode } from './services/authService';
+import { scheduleHomeworkReminder, getNotificationPermissionStatus } from './services/notificationService';
 import { LessonDetail } from './components/LessonDetail';
 import { SchoolList } from './components/SchoolList';
 import { RoleBadge } from './components/RoleBadge';
 import { QuestionBoard } from './components/QuestionBoard';
 import { Dashboard } from './components/Dashboard';
 import { HomeworkList } from './components/HomeworkList';
+import { UserManagement } from './components/UserManagement';
+import { DatabaseSeeder } from './components/DatabaseSeeder';
+import { ExamScores } from './components/ExamScores';
+import { NotificationSettings } from './components/NotificationSettings';
+import { NotificationToast, useToasts } from './components/NotificationToast';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './components/icons';
 
 // --- Login Screen ---
@@ -29,25 +36,30 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     setError(null);
     setIsLoading(true);
 
-    // Simulate network delay for better UX
-    await new Promise(r => setTimeout(r, 300));
+    try {
+      const check = await AuthService.checkEmail(email);
+      if (!check.exists) {
+        setError('ユーザーが見つかりません');
+        setIsLoading(false);
+        return;
+      }
 
-    const res = StorageService.login(email);
-    if (!res.success && res.error === 'ユーザーが見つかりません') {
-      setError('ユーザーが見つかりません');
+      if (!check.requiresPassword) {
+        // Student login (local mode only)
+        const result = await AuthService.login(email);
+        if (result.success && result.user) {
+          onLoginSuccess(result.user);
+        } else {
+          setError(result.error || 'ログインエラー');
+        }
+      } else {
+        setStep('password');
+      }
+    } catch (err: any) {
+      setError(err.message || 'ログインエラー');
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    const check = StorageService.login(email, '');
-    if (check.success) {
-      onLoginSuccess(check.user!);
-    } else if (check.error === 'パスワードを入力してください') {
-      setStep('password');
-    } else {
-      setError(check.error || 'ログインエラー');
-    }
-    setIsLoading(false);
   };
 
   const handlePasswordSubmit = async () => {
@@ -58,20 +70,23 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     setError(null);
     setIsLoading(true);
 
-    await new Promise(r => setTimeout(r, 300));
-
-    const res = StorageService.login(email, password);
-    if (res.success && res.user) {
-      if (res.user.isInitialPassword) {
-        setTempUser(res.user);
-        setStep('change_password');
+    try {
+      const result = await AuthService.login(email, password);
+      if (result.success && result.user) {
+        if (result.requiresPasswordChange) {
+          setTempUser(result.user);
+          setStep('change_password');
+        } else {
+          onLoginSuccess(result.user);
+        }
       } else {
-        onLoginSuccess(res.user);
+        setError(result.error || '認証に失敗しました');
       }
-    } else {
-      setError(res.error || '認証に失敗しました');
+    } catch (err: any) {
+      setError(err.message || '認証に失敗しました');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleChangePassword = async () => {
@@ -81,19 +96,24 @@ const LoginScreen = ({ onLoginSuccess }: { onLoginSuccess: (user: User) => void 
     }
     setIsLoading(true);
 
-    if (tempUser) {
-      const success = StorageService.changePassword(tempUser.id, newPassword);
-      if (success) {
-        setStep('password');
-        setPassword('');
-        setNewPassword('');
-        setTempUser(null);
-        setError(null);
-      } else {
-        setError('パスワード変更に失敗しました');
+    try {
+      if (tempUser) {
+        const success = await AuthService.changePassword(tempUser.id, newPassword);
+        if (success) {
+          setStep('password');
+          setPassword('');
+          setNewPassword('');
+          setTempUser(null);
+          setError(null);
+        } else {
+          setError('パスワード変更に失敗しました');
+        }
       }
+    } catch (err: any) {
+      setError(err.message || 'パスワード変更に失敗しました');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const quickLogin = (userEmail: string) => {
@@ -295,9 +315,13 @@ interface LayoutProps {
   originalRole?: UserRole; // To toggle back
   onToggleStudentView?: () => void;
   isStudentView?: boolean;
+  // Multi-child support
+  childrenList?: { id: string; name: string }[];
+  selectedChildId?: string;
+  onSelectChild?: (childId: string) => void;
 }
 
-const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudentView, isStudentView }: LayoutProps) => {
+const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudentView, isStudentView, childrenList, selectedChildId, onSelectChild }: LayoutProps) => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -312,6 +336,7 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
         ...common,
         { name: '写真で質問', path: '/questions' },
         { name: '宿題リスト', path: '/homework' },
+        { name: '通知設定', path: '/notifications' },
       ];
     }
 
@@ -320,12 +345,25 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
         ...common,
         { name: '質問レビュー', path: '/questions' },
         { name: '宿題管理', path: '/homework' },
+        { name: '模試成績', path: '/exam-scores' },
         { name: '授業記録', path: '/lessons/l1' }, // Fixed ID for MVP
         { name: '受験校管理', path: '/schools' },
       ];
     }
 
-    // Guardian / Admin
+    if (currentUser.role === UserRole.ADMIN) {
+      return [
+        ...common,
+        { name: 'ユーザー管理', path: '/users' },
+        { name: 'DBシーダー', path: '/db-seeder' },
+        { name: '宿題', path: '/homework' },
+        { name: '模試成績', path: '/exam-scores' },
+        { name: '学習状況', path: '/lessons/l1' },
+        { name: '受験校', path: '/schools' },
+      ];
+    }
+
+    // Guardian
     return [
       ...common,
       { name: '宿題', path: '/homework' },
@@ -387,6 +425,21 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
           })}
         </nav>
         <div className="absolute bottom-0 w-full p-4 border-t border-gray-200">
+          {/* Child Selector for Guardians/Tutors */}
+          {childrenList && childrenList.length > 0 && onSelectChild && (
+            <div className="mb-3">
+              <label className="block text-xs text-gray-500 mb-1">表示する生徒</label>
+              <select
+                value={selectedChildId || ''}
+                onChange={(e) => onSelectChild(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 bg-white focus:ring-1 focus:ring-indigo-500"
+              >
+                {childrenList.map((child) => (
+                  <option key={child.id} value={child.id}>{child.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {/* Student View Toggle for Guardians */}
           {originalRole === UserRole.GUARDIAN && (
             <button
@@ -440,7 +493,9 @@ const Layout = ({ children, currentUser, onLogout, originalRole, onToggleStudent
 // --- Main App ---
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(isFirebaseMode()); // Only loading for Firebase mode
   const [viewAsStudent, setViewAsStudent] = useState(false); // For Guardian preview
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null); // Multi-child support
   const [lesson, setLesson] = useState<Lesson>(MOCK_LESSON);
   const [schools, setSchools] = useState<StudentSchool[]>([]);
   const [questions, setQuestions] = useState<QuestionJob[]>([]);
@@ -458,15 +513,91 @@ export default function App() {
     refreshData();
   }, []);
 
+  // Firebase auth state listener
+  useEffect(() => {
+    if (!isFirebaseMode()) return;
+
+    const unsubscribe = AuthService.onAuthStateChanged((firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthLoading(false);
+      if (firebaseUser) {
+        // Auto-select first child if Guardian/Tutor
+        const childIds = firebaseUser.role === UserRole.GUARDIAN
+          ? firebaseUser.children
+          : firebaseUser.role === UserRole.TUTOR
+            ? firebaseUser.students
+            : undefined;
+        if (childIds && childIds.length > 0) {
+          setSelectedChildId(childIds[0]);
+        }
+        refreshData();
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // Toast notifications
+  const { toasts, dismissToast, showWarning } = useToasts();
+
+  // Check for due homework on mount
+  useEffect(() => {
+    if (!user) return;
+    const homeworkItems = lesson.aiHomework?.items || [];
+    const dueToday = homeworkItems.filter(hw => {
+      if (hw.isCompleted) return false;
+      const daysRemaining = hw.due_days_from_now;
+      return daysRemaining === 0;
+    });
+    const overdue = homeworkItems.filter(hw => {
+      if (hw.isCompleted) return false;
+      const daysRemaining = hw.due_days_from_now;
+      return daysRemaining < 0;
+    });
+
+    // Toast notifications
+    if (overdue.length > 0) {
+      showWarning(`期限切れの宿題が${overdue.length}件あります！`, 8000);
+    } else if (dueToday.length > 0) {
+      showWarning(`今日が期限の宿題が${dueToday.length}件あります`, 6000);
+    }
+
+    // Push notifications (if permitted)
+    if (getNotificationPermissionStatus() === 'granted') {
+      dueToday.forEach(hw => {
+        scheduleHomeworkReminder(hw.task, 0);
+      });
+      // Also notify for tomorrow's homework
+      const dueTomorrow = homeworkItems.filter(hw => {
+        if (hw.isCompleted) return false;
+        return hw.due_days_from_now === 1;
+      });
+      dueTomorrow.forEach(hw => {
+        scheduleHomeworkReminder(hw.task, 1);
+      });
+    }
+  }, [user, lesson]);
+
   const handleLoginSuccess = (u: User) => {
     setUser(u);
     setViewAsStudent(false);
+    // Auto-select first child if Guardian/Tutor has children/students
+    const childIds = u.role === UserRole.GUARDIAN ? u.children : u.role === UserRole.TUTOR ? u.students : undefined;
+    if (childIds && childIds.length > 0) {
+      setSelectedChildId(childIds[0]);
+    } else {
+      setSelectedChildId(null);
+    }
     refreshData();
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await AuthService.logout();
     setUser(null);
     setViewAsStudent(false);
+    setSelectedChildId(null);
   };
 
   const handleUpdateLesson = (updated: Lesson) => {
@@ -497,72 +628,123 @@ export default function App() {
   };
 
   // Main Render
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl shadow-lg mb-4 mx-auto flex items-center justify-center animate-pulse">
+            <span className="text-3xl">🐝</span>
+          </div>
+          <p className="text-white/60 text-sm">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // Compute children list for selector
+  const allUsers = StorageService.loadUsers();
+  const getChildrenList = (): { id: string; name: string }[] => {
+    if (!user) return [];
+    const childIds = user.role === UserRole.GUARDIAN ? user.children : user.role === UserRole.TUTOR ? user.students : undefined;
+    if (!childIds || childIds.length === 0) return [];
+    return childIds
+      .map(id => {
+        const found = allUsers.find(u => u.id === id);
+        return found ? { id: found.id, name: found.name } : null;
+      })
+      .filter(Boolean) as { id: string; name: string }[];
+  };
+  const childrenList = getChildrenList();
+
+  // Use selectedChildId if set, otherwise default to first child or INITIAL_STUDENT_CONTEXT
+  const effectiveChildId = selectedChildId || (childrenList.length > 0 ? childrenList[0].id : INITIAL_STUDENT_CONTEXT.id);
+  const effectiveChildName = childrenList.find(c => c.id === effectiveChildId)?.name || INITIAL_STUDENT_CONTEXT.name;
+
   // Effect: Masquerade as Student if viewAsStudent is true
-  // IMPORTANT: Current implementation assumes single child (s1).
-  // For multi-child support, add studentId selector when Guardian logs in.
-  // The selected studentId should be stored in state and used here instead of INITIAL_STUDENT_CONTEXT.id.
   const effectiveUser = viewAsStudent
     ? {
       ...user,
       role: UserRole.STUDENT,
-      id: INITIAL_STUDENT_CONTEXT.id, // TODO: Replace with selected studentId for multi-child
-      name: `${user.name} (Preview)`
+      id: effectiveChildId,
+      name: `${effectiveChildName} (プレビュー)`
     }
     : user;
 
   return (
-    <HashRouter>
-      <Layout
-        currentUser={effectiveUser}
-        onLogout={handleLogout}
-        originalRole={user.role}
-        isStudentView={viewAsStudent}
-        onToggleStudentView={() => setViewAsStudent(!viewAsStudent)}
-      >
-        <Routes>
-          <Route path="/" element={<Dashboard currentUser={effectiveUser} schools={schools} lesson={lesson} logs={logs} questions={questions} />} />
+    <>
+      <NotificationToast toasts={toasts} onDismiss={dismissToast} />
+      <HashRouter>
+        <Layout
+          currentUser={effectiveUser}
+          onLogout={handleLogout}
+          originalRole={user.role}
+          isStudentView={viewAsStudent}
+          onToggleStudentView={() => setViewAsStudent(!viewAsStudent)}
+          childrenList={childrenList}
+          selectedChildId={selectedChildId || effectiveChildId}
+          onSelectChild={(id) => setSelectedChildId(id)}
+        >
+          <Routes>
+            <Route path="/" element={<Dashboard currentUser={effectiveUser} schools={schools} lesson={lesson} logs={logs} questions={questions} />} />
 
-          <Route path="/questions" element={
-            <QuestionBoard currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
-          } />
+            <Route path="/questions" element={
+              <QuestionBoard currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
+            } />
 
-          <Route path="/homework" element={
-            <HomeworkList
-              lesson={lesson}
-              currentUser={effectiveUser}
-              onUpdateLesson={handleUpdateLesson}
-              onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-            />
-          } />
+            <Route path="/homework" element={
+              <HomeworkList
+                lesson={lesson}
+                currentUser={effectiveUser}
+                onUpdateLesson={handleUpdateLesson}
+                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+              />
+            } />
 
-          <Route path="/lessons/:id" element={
-            <LessonDetail
-              lesson={lesson}
-              currentUser={effectiveUser}
-              onUpdateLesson={handleUpdateLesson}
-              onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-            />
-          } />
+            <Route path="/lessons/:id" element={
+              <LessonDetail
+                lesson={lesson}
+                currentUser={effectiveUser}
+                onUpdateLesson={handleUpdateLesson}
+                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+              />
+            } />
 
-          <Route path="/schools" element={
-            <SchoolList
-              schools={schools}
-              currentUser={effectiveUser}
-              onUpdateSchool={handleUpdateSchool}
-              onAddSchool={handleAddSchool}
-              onDeleteSchool={handleDeleteSchool}
-              permissionMode={effectiveUser.role === UserRole.TUTOR ? 'strict' : 'collaborative'}
-            />
-          } />
+            <Route path="/schools" element={
+              <SchoolList
+                schools={schools}
+                currentUser={effectiveUser}
+                onUpdateSchool={handleUpdateSchool}
+                onAddSchool={handleAddSchool}
+                onDeleteSchool={handleDeleteSchool}
+                permissionMode={effectiveUser.role === UserRole.TUTOR ? 'strict' : 'collaborative'}
+              />
+            } />
 
-          {/* Fallback for old routes or mis-navigation */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
-    </HashRouter>
+            <Route path="/exam-scores" element={
+              <ExamScores currentUser={effectiveUser} schools={schools} />
+            } />
+
+            <Route path="/notifications" element={
+              <NotificationSettings currentUser={effectiveUser} />
+            } />
+
+            {/* Admin: User Management */}
+            {user.role === UserRole.ADMIN && (
+              <>
+                <Route path="/users" element={<UserManagement currentUser={user} />} />
+                <Route path="/db-seeder" element={<DatabaseSeeder currentUser={user} />} />
+              </>
+            )}
+
+            {/* Fallback for old routes or mis-navigation */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </HashRouter>
+    </>
   );
 }

@@ -2,6 +2,9 @@
 
 ## 🚧 In Progress (M2)
 - [x] Homework List page（期限計算ユーティリティ、宿題トグル、手動追加/削除、監査ログ）
+- [x] User Relation Management（Guardian→children、Tutor→students紐付け）
+- [x] Multi-Student Support（Guardian/Tutor用の生徒切替セレクタ）
+- [x] Homework Notifications（期限切れ/当日のトースト通知）
 - [ ] Homework → Firebase 永続化（Auth/Firestore連携後に移行）
 - [ ] 宿題のリマインド/期限切れ通知（設計）
 - [ ] main 統合用の小さめPR運用開始（build/lint通過＋TODO更新を必須化）
@@ -32,14 +35,17 @@
 ## 🔜 Next PR Roadmap
 
 ### PR #2: Firebase Auth Integration
-- [ ] Firebase project setup
-- [ ] Replace local auth with Firebase Authentication
-- [ ] Email/password sign-in
-- [ ] Session persistence
+- [x] Firebase project setup
+- [x] Firestore security rules deployed
+- [x] Database Seeder component created
+- [x] AuthService with dual-mode support (local/Firebase)
+- [x] Email/password sign-in
+- [x] Session persistence (Firebase auth state listener)
 
 ### PR #3: Firestore Data Layer
-- [ ] Firestore CRUD for `schools`, `lessons`, `users`
-- [ ] Real-time listeners
+- [x] Firestore CRUD stubs in firebaseService.ts
+- [x] getAllUsers & getUserByEmail added
+- [ ] Real-time listeners (partial - auth only)
 - [ ] Offline persistence
 
 ### PR #4: Cloud Functions for AI
@@ -59,8 +65,8 @@
 - [ ] Push notifications (FCM)
 
 ### PR #7: Exam Score Management
-- [ ] Score input UI
-- [ ] Graph/chart visualization
+- [x] Score input UI
+- [x] Graph/chart visualization
 - [ ] Trend analysis
 
 ### PR #8: Mobile UX Improvements
