@@ -43,26 +43,22 @@ jobs:
         run: npm --prefix functions run build
       
       - name: Deploy Firestore Rules
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         run: npx firebase-tools deploy --only firestore:rules --project ${{ secrets.FIREBASE_PROJECT_ID }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy Storage Rules
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         run: npx firebase-tools deploy --only storage:rules --project ${{ secrets.FIREBASE_PROJECT_ID }} || echo "Storage rules not configured"
         env:
           GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy Cloud Functions
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         run: npx firebase-tools deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Deploy to Firebase Hosting
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
