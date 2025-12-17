@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User, UserRole, StudentSchool, Lesson, AuditLog, QuestionJob } from '../types';
 import { DateUtils } from '../services/storageService';
@@ -6,6 +6,11 @@ import { notificationService } from '../services/notificationService';
 import { getHomeworkMeta } from '../services/homeworkUtils';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './icons';
 import { MOCK_STUDENTS } from './StudentSelector';
+// New production components
+import { StudyLogTracker } from './student/StudyLogTracker';
+import { AttendanceManager } from './tutor/AttendanceManager';
+import { ProgressReport } from './guardian/ProgressReport';
+import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 
 interface DashboardProps {
     currentUser: User;
@@ -273,6 +278,11 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
                     </Link>
                 </div>
             </div>
+
+            {/* Study Log Section */}
+            <div className="mt-8 animate-slide-up animate-delay-3">
+                <StudyLogTracker currentUser={currentUser} />
+            </div>
         </div>
     );
 };
@@ -476,6 +486,15 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
                     </div>
                 )}
             </div>
+
+            {/* Progress Report Section */}
+            <div className="mt-8 animate-slide-up animate-delay-3">
+                <ProgressReport
+                    currentUser={currentUser}
+                    selectedStudentId={studentId}
+                    studentName={currentUser.linkedStudentIds?.length ? 'お子様' : '生徒'}
+                />
+            </div>
         </div>
     );
 };
@@ -630,6 +649,11 @@ const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson
                         ))}
                     </div>
                 </div>
+            </div>
+
+            {/* Attendance Management Section */}
+            <div className="mt-8 animate-slide-up animate-delay-3">
+                <AttendanceManager currentUser={currentUser} selectedStudentId={studentId} />
             </div>
         </div>
     );
@@ -800,6 +824,11 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Analytics Dashboard Section */}
+            <div className="mt-8 animate-slide-up animate-delay-3">
+                <AnalyticsDashboard currentUser={currentUser} />
             </div>
         </div>
     );
