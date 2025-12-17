@@ -4,6 +4,7 @@ import { User, UserRole } from '../types';
 import { RoleBadge } from './RoleBadge';
 import { BottomNav } from './BottomNav';
 import { OfflineIndicator } from './ui/OfflineIndicator';
+import { FeedbackButton } from './common/FeedbackModal';
 
 interface AppLayoutProps {
     children: React.ReactNode;
@@ -19,6 +20,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     currentUser,
     onLogout,
     originalRole,
+    isMasquerading,
+    onExitMasquerade,
     onToggleStudentView,
     isStudentView
 }) => {
@@ -34,11 +37,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         if (currentUser.role === UserRole.STUDENT) {
             return [
                 ...common,
-                { name: '📅 宿題カレンダー', path: '/calendar' },
-                { name: '🎯 目標トラッカー', path: '/goals' },
-                { name: '🤖 AIチャット', path: '/chat' },
-                { name: '📝 写真で質問', path: '/questions' },
-                { name: '📚 宿題リスト', path: '/homework' },
+                { name: '📅 学習ダッシュボード', path: '/' },
+                { name: '📚 宿題・タスク', path: '/homework' },
+                { name: '🤖 AI先生', path: '/chat' },
+                { name: '🎯 目標', path: '/goals' },
                 { name: '🔔 通知', path: '/notifications' },
             ];
         }
@@ -134,7 +136,21 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                         );
                     })}
                 </nav>
-                <div className="absolute bottom-0 w-full p-4 border-t border-gray-200">
+                {/* Masquerade Banner force-on-top */}
+                {isMasquerading && (
+                    <div className="bg-amber-500 text-white px-4 py-2 text-center text-sm font-bold flex items-center justify-center gap-4 shadow-md relative z-50">
+                        <span className="flex items-center gap-2">
+                            <span className="bg-white/20 p-1 rounded">👀</span>
+                            {currentUser.name} ({currentUser.role}) としてプレビュー中
+                        </span>
+                        <button
+                            onClick={onExitMasquerade}
+                            className="bg-white text-amber-600 px-3 py-1 rounded-full text-xs hover:bg-amber-50"
+                        >
+                            プレビュー終了
+                        </button>
+                    </div>
+                )}    <div className="absolute bottom-0 w-full p-4 border-t border-gray-200">
                     {/* Student View Toggle for Guardians */}
                     {originalRole === UserRole.GUARDIAN && (
                         <button
@@ -185,6 +201,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
                 {/* Offline Status Indicator */}
                 <OfflineIndicator />
+
+                {/* Floating Feedback Button */}
+                <FeedbackButton currentUser={currentUser} />
             </div>
         </div>
     );

@@ -232,19 +232,23 @@ export const firestoreOperations = {
         await fs.setDoc(fs.doc(db, 'lessons', lesson.id), lesson);
     },
 
-    async getQuestions(studentId?: string): Promise<QuestionJob[]> {
+    async getQuestions(userId?: string, role?: string): Promise<QuestionJob[]> {
         const { db } = await loadFirebaseModules();
         const fs = await import('firebase/firestore');
         let q;
-        if (studentId) {
-            q = fs.query(fs.collection(db, 'questions'), fs.where('studentId', '==', studentId), fs.orderBy('createdAt', 'desc'));
+
+        if (role === 'TUTOR') {
+            q = fs.query(fs.collection(db, 'questions'));
+        } else if (userId) {
+            q = fs.query(fs.collection(db, 'questions'), fs.where('studentId', '==', userId));
         } else {
-            q = fs.query(fs.collection(db, 'questions'), fs.orderBy('createdAt', 'desc'));
+            q = fs.query(fs.collection(db, 'questions'));
         }
+
         const snapshot = await fs.getDocs(q);
-        return snapshot.docs.map(d => {
-            const data = d.data() as Record<string, unknown>;
-            return { id: d.id, ...data } as QuestionJob;
+        return snapshot.docs.map(doc => {
+            const data = doc.data() as object;
+            return { ...data, id: doc.id } as QuestionJob;
         });
     },
 
@@ -268,19 +272,16 @@ export const firestoreOperations = {
         return snapshot.docs.slice(0, limit).map(d => d.data() as AuditLog);
     },
 
-    // Get linked students for a guardian or tutor
     async getLinkedStudents(userId: string, userRole: string): Promise<User[]> {
         const { db } = await loadFirebaseModules();
         const fs = await import('firebase/firestore');
 
-        // Get the current user to find their linked students
         const userDoc = await fs.getDoc(fs.doc(db, 'users', userId));
         if (!userDoc.exists()) return [];
 
         const userData = userDoc.data() as User;
 
         if (userRole === 'GUARDIAN' && userData.linkedStudentIds?.length) {
-            // Get students linked to this guardian
             const students: User[] = [];
             for (const studentId of userData.linkedStudentIds) {
                 const studentDoc = await fs.getDoc(fs.doc(db, 'users', studentId));
@@ -290,7 +291,6 @@ export const firestoreOperations = {
             }
             return students;
         } else if (userRole === 'TUTOR') {
-            // Get all students assigned to this tutor
             const q = fs.query(
                 fs.collection(db, 'users'),
                 fs.where('role', '==', 'STUDENT'),
@@ -299,11 +299,9 @@ export const firestoreOperations = {
             const snapshot = await fs.getDocs(q);
             return snapshot.docs.map(d => d.data() as User);
         }
-
         return [];
     },
 
-    // Update user's last activity and calculate streak
     async updateUserActivity(userId: string): Promise<{ streak: number; xp: number; level: number }> {
         const { db } = await loadFirebaseModules();
         const fs = await import('firebase/firestore');
@@ -327,16 +325,13 @@ export const firestoreOperations = {
             const yesterdayStr = yesterday.toISOString().split('T')[0];
 
             if (lastActiveDate === today) {
-                // Already active today, no change
+                // Already active today
             } else if (lastActiveDate === yesterdayStr) {
-                // Continue streak
                 newStreak += 1;
             } else {
-                // Streak broken
                 newStreak = 1;
             }
         } else {
-            // First activity
             newStreak = 1;
         }
 
@@ -349,7 +344,6 @@ export const firestoreOperations = {
         return { streak: newStreak, xp: currentXp, level: currentLevel };
     },
 
-    // Add XP to user and calculate level
     async addUserXp(userId: string, xpToAdd: number): Promise<{ xp: number; level: number; leveledUp: boolean }> {
         const { db } = await loadFirebaseModules();
         const fs = await import('firebase/firestore');
@@ -360,9 +354,8 @@ export const firestoreOperations = {
         const userData = userDoc.data() as User;
         const currentXp = (userData.xp || 0) + xpToAdd;
         const currentLevel = userData.level || 1;
-
-        // Level calculation: 100 XP per level, exponential growth
         const xpPerLevel = (level: number) => Math.floor(100 * Math.pow(1.2, level - 1));
+
         let newLevel = currentLevel;
         let remainingXp = currentXp;
 
@@ -382,7 +375,6 @@ export const firestoreOperations = {
         return { xp: currentXp, level: newLevel, leveledUp };
     },
 
-    // Create a new student
     async createStudent(studentData: Partial<User>, tutorId?: string, guardianId?: string): Promise<User | null> {
         const { db } = await loadFirebaseModules();
         const fs = await import('firebase/firestore');
@@ -407,7 +399,6 @@ export const firestoreOperations = {
 
         await fs.setDoc(fs.doc(db, 'users', newId), newStudent);
 
-        // Link to guardian if provided
         if (guardianId) {
             const guardianDoc = await fs.getDoc(fs.doc(db, 'users', guardianId));
             if (guardianDoc.exists()) {
@@ -423,13 +414,88 @@ export const firestoreOperations = {
         return newStudent;
     },
 
-    // Get all students (for admin)
     async getAllStudents(): Promise<User[]> {
         const { db } = await loadFirebaseModules();
         const fs = await import('firebase/firestore');
         const q = fs.query(fs.collection(db, 'users'), fs.where('role', '==', 'STUDENT'));
         const snapshot = await fs.getDocs(q);
         return snapshot.docs.map(d => d.data() as User);
+    },
+
+    subscribeToUser(userId: string, callback: (user: User) => void): () => void {
+        let unsubscribe: (() => void) | null = null;
+        let isCancelled = false;
+
+        loadFirebaseModules().then(async ({ db }) => {
+            if (isCancelled) return;
+            const fs = await import('firebase/firestore');
+
+            unsubscribe = fs.onSnapshot(fs.doc(db, 'users', userId), (doc) => {
+                if (doc.exists()) {
+                    callback(doc.data() as User);
+                }
+            });
+        });
+
+        return () => {
+            isCancelled = true;
+            if (unsubscribe) {
+                unsubscribe();
+            }
+        };
+    },
+
+    async getAllUsers(): Promise<User[]> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        // Limit to 100 for now to prevent massive reads in this demo
+        const q = fs.query(fs.collection(db, 'users'), fs.limit(100));
+        const snapshot = await fs.getDocs(q);
+        return snapshot.docs.map(d => d.data() as User);
+    },
+
+    async deleteUser(userId: string): Promise<void> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        await fs.deleteDoc(fs.doc(db, 'users', userId));
+    },
+
+    async createUser(userData: User): Promise<void> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        await fs.setDoc(fs.doc(db, 'users', userData.id), {
+            ...userData,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        });
+    },
+
+    async getAdminStats(): Promise<{ totalUsers: number; activeToday: number; totalLessons: number; pendingIssues: number }> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+
+        // Parallel fetch for performace
+        const [usersSnap, lessonsSnap, questionsSnap] = await Promise.all([
+            fs.getCountFromServer(fs.collection(db, 'users')),
+            fs.getCountFromServer(fs.collection(db, 'lessons')),
+            fs.getCountFromServer(fs.query(fs.collection(db, 'questions'), fs.where('status', '==', 'pending')))
+        ]);
+
+        // Active today approximation (querying all users is expensive, so maybe we query users where lastActiveAt >= today)
+        // For MVP/Demo, count total users as active is not correct. 
+        // Let's do a simple query for active users.
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const activeSnap = await fs.getCountFromServer(
+            fs.query(fs.collection(db, 'users'), fs.where('lastActiveAt', '>=', today.toISOString()))
+        );
+
+        return {
+            totalUsers: usersSnap.data().count,
+            activeToday: activeSnap.data().count,
+            totalLessons: lessonsSnap.data().count,
+            pendingIssues: questionsSnap.data().count
+        };
     }
 };
 
@@ -455,5 +521,10 @@ export default {
     updateUserActivity: firestoreOperations.updateUserActivity,
     addUserXp: firestoreOperations.addUserXp,
     createStudent: firestoreOperations.createStudent,
-    getAllStudents: firestoreOperations.getAllStudents
+    createUser: firestoreOperations.createUser,
+    getAllStudents: firestoreOperations.getAllStudents,
+    getAllUsers: firestoreOperations.getAllUsers,
+    deleteUser: firestoreOperations.deleteUser,
+    subscribeToUser: firestoreOperations.subscribeToUser,
+    getAdminStats: firestoreOperations.getAdminStats
 };

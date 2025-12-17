@@ -5,11 +5,12 @@ import { DateUtils } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { getHomeworkMeta } from '../services/homeworkUtils';
 import { CalendarIcon, CheckCircleIcon, ClockIcon, FlagIcon, SparklesIcon } from './icons';
-import { MOCK_STUDENTS } from './StudentSelector';
 // New production components
 import { StudyLogTracker } from './student/StudyLogTracker';
 import { AttendanceManager } from './tutor/AttendanceManager';
 import { ProgressReport } from './guardian/ProgressReport';
+import { WeeklySummary } from './guardian/WeeklySummary';
+import { BADGES } from '../services/gamificationService';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 
 interface DashboardProps {
@@ -19,6 +20,7 @@ interface DashboardProps {
     logs: AuditLog[];
     questions?: QuestionJob[];
     studentId?: string; // For Guardian multi-child support
+    students?: User[]; // For Tutor/Guardian list
 }
 
 // Shared utilities
@@ -75,6 +77,12 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
 
     const xpProgress = stats.xpToNext > 0 ? (stats.xp / stats.xpToNext) * 100 : 0;
 
+    // Helper to get badge icon
+    const getBadgeIcon = (id: string) => {
+        const badge = BADGES.find(b => b.id === id);
+        return badge ? badge.icon : '🏅';
+    };
+
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
             {/* Hero Header with Enhanced Animation */}
@@ -102,8 +110,12 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
                                     <span className="bg-yellow-400/20 border border-yellow-400/30 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                                         🏅 {stats.rank}ランク
                                     </span>
-                                    <div className="flex gap-1">
-                                        {stats.badges.slice(0, 4).map((b, i) => <span key={i} className="text-lg">{b}</span>)}
+                                    <div className="flex gap-1" title="獲得バッジ">
+                                        {stats.badges.slice(0, 4).map((bId, i) => (
+                                            <span key={i} className="text-xl filter drop-shadow hover:scale-125 transition-transform cursor-help" title={BADGES.find(b => b.id === bId)?.name}>
+                                                {getBadgeIcon(bId)}
+                                            </span>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -289,14 +301,14 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
 
 // ===== GUARDIAN DASHBOARD =====
 // Goal: Premium, trustworthy design for parents - Gold/Navy theme
-const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson, studentId }) => {
+const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson, studentId, students = [] }) => {
     const upcomingEvents = getUpcomingEvents(schools);
     const homeworkItems = lesson.aiHomework?.items || [];
     const completedHomework = homeworkItems.filter(h => h.isCompleted);
     const completionRate = homeworkItems.length > 0 ? Math.round((completedHomework.length / homeworkItems.length) * 100) : 0;
 
-    // Get selected child info from MOCK_STUDENTS
-    const selectedChild = MOCK_STUDENTS.find(s => s.id === studentId) || MOCK_STUDENTS[0];
+    // Get selected child info from students prop
+    const selectedChild = students.find(s => s.id === studentId) || students[0];
     const childDisplayName = selectedChild?.name || 'お子様';
     // Determine suffix based on name (simple heuristic)
     const nameSuffix = selectedChild?.name?.endsWith('子') ? 'ちゃん' : 'くん';
@@ -487,8 +499,16 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
                 )}
             </div>
 
-            {/* Progress Report Section */}
+            {/* Weekly Summary Section */}
             <div className="mt-8 animate-slide-up animate-delay-3">
+                <WeeklySummary
+                    currentUser={currentUser}
+                    studentName={childDisplayName}
+                />
+            </div>
+
+            {/* Progress Report Section */}
+            <div className="mt-8 animate-slide-up animate-delay-4">
                 <ProgressReport
                     currentUser={currentUser}
                     selectedStudentId={studentId}
@@ -501,12 +521,12 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
 
 // ===== TUTOR DASHBOARD =====
 // Goal: Efficient workflow with prominent task visibility
-const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson, questions = [], studentId }) => {
+const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson, questions = [], studentId, students = [] }) => {
     const upcomingEvents = getUpcomingEvents(schools);
     const pendingQuestions = questions.filter(q => q.status === 'pending' || q.status === 'queued');
 
     // Get selected student info
-    const selectedStudent = MOCK_STUDENTS.find(s => s.id === studentId) || MOCK_STUDENTS[0];
+    const selectedStudent = students.find(s => s.id === studentId) || students[0] || { name: '生徒', id: 'unknown' } as User;
 
     // Calculate dynamic stats from actual data
     const homeworkItems = lesson.aiHomework?.items || [];
@@ -518,7 +538,11 @@ const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson
         todayClasses: 1,
         pendingReviews: pendingQuestions.length,
         thisMonthHours: Math.round(estimatedMinutes / 60 * 10) / 10 || 0,
-        students: MOCK_STUDENTS.map(s => ({ ...s, lastActive: '2時間前', progress: Math.floor(Math.random() * 30) + 70 }))
+        students: students.map(s => ({
+            ...s,
+            lastActive: s.lastActiveAt ? new Date(s.lastActiveAt).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '未ログイン',
+            progress: Math.min(100, (s.level || 1) * 2) // Rough estimate based on level
+        }))
     };
 
     const nextExam = upcomingEvents[0];
@@ -662,16 +686,31 @@ const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson
 // ===== ADMIN DASHBOARD =====
 // Goal: Minimal, clean design for efficient system management
 const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
-    // Mock admin stats
-    const adminStats = {
-        totalUsers: 24,
-        activeToday: 18,
-        totalLessons: 156,
-        pendingIssues: 2
-    };
+    const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+    const [stats, setStats] = useState({
+        totalUsers: 0,
+        activeToday: 0,
+        totalLessons: 0,
+        pendingIssues: 0
+    });
+
+    useEffect(() => {
+        if (isFirebaseMode) {
+            import('../services/firebaseService').then(({ firestoreOperations }) => {
+                firestoreOperations.getAdminStats().then(setStats).catch(console.error);
+            });
+        } else {
+            // Local mode fallback (could use StorageService if implemented)
+            setStats({
+                totalUsers: 24, // Mock for local
+                activeToday: 1,
+                totalLessons: 156,
+                pendingIssues: 0
+            });
+        }
+    }, [isFirebaseMode]);
 
     const recentLogs = logs.slice(0, 8);
-    const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
@@ -696,7 +735,7 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
                         <span className="text-gray-400 text-sm">ユーザー</span>
                         <span className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-sm">👥</span>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">{adminStats.totalUsers}</p>
+                    <p className="text-3xl font-bold text-gray-900">{stats.totalUsers}</p>
                     <p className="text-xs text-gray-500 mt-1">登録中</p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
@@ -704,7 +743,7 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
                         <span className="text-gray-400 text-sm">アクティブ</span>
                         <span className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-sm">🟢</span>
                     </div>
-                    <p className="text-3xl font-bold text-emerald-600">{adminStats.activeToday}</p>
+                    <p className="text-3xl font-bold text-emerald-600">{stats.activeToday}</p>
                     <p className="text-xs text-gray-500 mt-1">本日</p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
@@ -712,15 +751,15 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
                         <span className="text-gray-400 text-sm">累計授業</span>
                         <span className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-sm">📚</span>
                     </div>
-                    <p className="text-3xl font-bold text-gray-900">{adminStats.totalLessons}</p>
+                    <p className="text-3xl font-bold text-gray-900">{stats.totalLessons}</p>
                     <p className="text-xs text-gray-500 mt-1">回</p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-gray-400 text-sm">対応待ち</span>
-                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${adminStats.pendingIssues > 0 ? 'bg-amber-50' : 'bg-gray-100'}`}>⚠️</span>
+                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${stats.pendingIssues > 0 ? 'bg-amber-50' : 'bg-gray-100'}`}>⚠️</span>
                     </div>
-                    <p className={`text-3xl font-bold ${adminStats.pendingIssues > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{adminStats.pendingIssues}</p>
+                    <p className={`text-3xl font-bold ${stats.pendingIssues > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{stats.pendingIssues}</p>
                     <p className="text-xs text-gray-500 mt-1">件</p>
                 </div>
             </div>

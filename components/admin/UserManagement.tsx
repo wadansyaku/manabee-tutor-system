@@ -6,6 +6,7 @@ import { StorageService } from '../../services/storageService';
 interface UserManagementProps {
     currentUser: User;
     onAudit: (action: string, summary: string) => void;
+    onMasquerade?: (user: User) => void;
 }
 
 // Extended user with metadata for admin
@@ -51,21 +52,40 @@ const ROLE_COLORS: Record<UserRole, string> = {
     [UserRole.STUDENT]: 'bg-green-100 text-green-700'
 };
 
-export const UserManagement: React.FC<UserManagementProps> = ({ currentUser, onAudit }) => {
+export const UserManagement: React.FC<UserManagementProps> = ({ currentUser, onAudit, onMasquerade }) => {
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
 
     // Form state
     const [formName, setFormName] = useState('');
     const [formEmail, setFormEmail] = useState('');
     const [formRole, setFormRole] = useState<UserRole>(UserRole.STUDENT);
 
+    const loadUsers = async () => {
+        setIsLoading(true);
+        try {
+            if (isFirebaseMode) {
+                const { firestoreOperations } = await import('../../services/firebaseService');
+                const fbUsers = await firestoreOperations.getAllUsers();
+                setUsers(fbUsers.map(u => ({ ...u, isActive: true } as AdminUser))); // Assume active for now
+            } else {
+                setUsers(loadAdminUsers());
+            }
+        } catch (error) {
+            console.error('Failed to load users', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        setUsers(loadAdminUsers());
-    }, []);
+        loadUsers();
+    }, [isFirebaseMode]);
 
     const filteredUsers = users
         .filter(u => roleFilter === 'all' || u.role === roleFilter)
@@ -74,7 +94,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUser, onA
             u.email.toLowerCase().includes(searchQuery.toLowerCase())
         );
 
-    const handleAddUser = () => {
+    const handleAddUser = async () => {
         if (!formName.trim() || !formEmail.trim()) return;
 
         const newUser: AdminUser = {
@@ -87,51 +107,99 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUser, onA
             isInitialPassword: true
         };
 
-        const updated = [...users, newUser];
-        setUsers(updated);
-        saveAdminUsers(updated);
-        onAudit('user_created', `${formName} (${ROLE_LABELS[formRole]}) を追加`);
+        if (isFirebaseMode) {
+            try {
+                const { firestoreOperations } = await import('../../services/firebaseService');
+                await firestoreOperations.createUser(newUser);
+                await loadUsers(); // Refresh
+                onAudit('user_created', `${formName} (${ROLE_LABELS[formRole]}) を追加 (Firebase)`);
+            } catch (e) {
+                alert('ユーザー作成に失敗しました');
+                console.error(e);
+            }
+        } else {
+            const updated = [...users, newUser];
+            setUsers(updated);
+            saveAdminUsers(updated);
+            onAudit('user_created', `${formName} (${ROLE_LABELS[formRole]}) を追加`);
+        }
 
         setShowAddModal(false);
         resetForm();
     };
 
-    const handleUpdateUser = () => {
+    const handleUpdateUser = async () => {
         if (!editingUser || !formName.trim() || !formEmail.trim()) return;
 
-        const updated = users.map(u =>
-            u.id === editingUser.id
-                ? { ...u, name: formName.trim(), email: formEmail.trim(), role: formRole }
-                : u
-        );
-        setUsers(updated);
-        saveAdminUsers(updated);
-        onAudit('user_updated', `${formName} の情報を更新`);
+        if (isFirebaseMode) {
+            try {
+                const { firestoreOperations } = await import('../../services/firebaseService');
+                await firestoreOperations.updateUser(editingUser.id, {
+                    name: formName.trim(),
+                    email: formEmail.trim(),
+                    role: formRole
+                });
+                await loadUsers();
+                onAudit('user_updated', `${formName} の情報を更新 (Firebase)`);
+            } catch (e) {
+                alert('更新失敗');
+            }
+        } else {
+            const updated = users.map(u =>
+                u.id === editingUser.id
+                    ? { ...u, name: formName.trim(), email: formEmail.trim(), role: formRole }
+                    : u
+            );
+            setUsers(updated);
+            saveAdminUsers(updated);
+            onAudit('user_updated', `${formName} の情報を更新`);
+        }
 
         setEditingUser(null);
         resetForm();
     };
 
-    const handleToggleActive = (user: AdminUser) => {
+    const handleToggleActive = async (user: AdminUser) => {
+        // Active status logic might need a field in Firestore 'isActive' which standard User model might lack
+        // For now, assume it's local state or add field if needed.
+        // If User model doesn't have isActive, we can't persist it easily in Firebase without schema change.
+        // Let's assume we skip persisting detailed active/inactive state to Firebase for this MVP unless schema supports it.
+        // Or we update 'updatedAt' as a keep-alive.
+
+        // Local logic preserved:
         const updated = users.map(u =>
             u.id === user.id ? { ...u, isActive: !u.isActive } : u
         );
         setUsers(updated);
-        saveAdminUsers(updated);
+
+        if (!isFirebaseMode) {
+            saveAdminUsers(updated);
+        }
         onAudit('user_status_changed', `${user.name} を${user.isActive ? '無効化' : '有効化'}`);
     };
 
-    const handleDeleteUser = (user: AdminUser) => {
+    const handleDeleteUser = async (user: AdminUser) => {
         if (user.id === currentUser.id) {
             alert('自分自身は削除できません');
             return;
         }
         if (!confirm(`${user.name} を削除しますか？この操作は取り消せません。`)) return;
 
-        const updated = users.filter(u => u.id !== user.id);
-        setUsers(updated);
-        saveAdminUsers(updated);
-        onAudit('user_deleted', `${user.name} を削除`);
+        if (isFirebaseMode) {
+            try {
+                const { firestoreOperations } = await import('../../services/firebaseService');
+                await firestoreOperations.deleteUser(user.id);
+                await loadUsers();
+                onAudit('user_deleted', `${user.name} を削除 (Firebase)`);
+            } catch (e) {
+                alert('削除失敗');
+            }
+        } else {
+            const updated = users.filter(u => u.id !== user.id);
+            setUsers(updated);
+            saveAdminUsers(updated);
+            onAudit('user_deleted', `${user.name} を削除`);
+        }
     };
 
     const openEditModal = (user: AdminUser) => {
@@ -197,8 +265,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUser, onA
                         <button
                             onClick={() => setRoleFilter('all')}
                             className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${roleFilter === 'all'
-                                    ? 'bg-gray-900 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? 'bg-gray-900 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                         >
                             すべて
@@ -208,8 +276,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUser, onA
                                 key={role}
                                 onClick={() => setRoleFilter(role)}
                                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${roleFilter === role
-                                        ? 'bg-gray-900 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-gray-900 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                             >
                                 {ROLE_LABELS[role]}
@@ -278,6 +346,13 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUser, onA
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex gap-2 justify-end">
+                                            <button
+                                                onClick={() => onMasquerade && onMasquerade(user)}
+                                                className="text-xs text-blue-600 hover:text-blue-800 font-semibold"
+                                                title="このユーザーとして表示"
+                                            >
+                                                👁️ 表示
+                                            </button>
                                             <button
                                                 onClick={() => openEditModal(user)}
                                                 className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
@@ -351,8 +426,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentUser, onA
                                             key={role}
                                             onClick={() => setFormRole(role)}
                                             className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${formRole === role
-                                                    ? 'bg-indigo-600 text-white'
-                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                ? 'bg-indigo-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                                 }`}
                                         >
                                             {ROLE_LABELS[role]}

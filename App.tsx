@@ -9,7 +9,7 @@ import { QuestionBoard } from './components/QuestionBoard';
 import { Dashboard } from './components/Dashboard';
 import { HomeworkList } from './components/HomeworkList';
 import { ExamScoreManager } from './components/ExamScoreManager';
-import { StudentSelector, MOCK_STUDENTS } from './components/StudentSelector';
+import { StudentSelector } from './components/StudentSelector';
 // Admin Components
 import { UserManagement } from './components/admin/UserManagement';
 import { SystemSettings } from './components/admin/SystemSettings';
@@ -22,18 +22,21 @@ import { LessonRecorder } from './components/tutor/LessonRecorder';
 import { HomeworkCalendar } from './components/student/HomeworkCalendar';
 import { GoalTracker } from './components/student/GoalTracker';
 import { CharacterChat } from './components/student/CharacterChat';
+import { HomeworkPage } from './components/student/HomeworkPage';
+import { AIAssistant } from './components/student/AIAssistant';
 // Common Components
 import { ReportExport } from './components/common/ReportExport';
 import { NotificationCenter } from './components/common/NotificationCenter';
 // Extracted Components
 import { LoginScreen } from './components/LoginScreen';
 import { AppLayout } from './components/AppLayout';
-
+import { GlobalErrorBoundary } from './components/common/GlobalErrorBoundary';
 
 // --- Main App ---
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [viewAsStudent, setViewAsStudent] = useState(false); // For Guardian preview
+  const [masqueradeUser, setMasqueradeUser] = useState<User | null>(null); // For Admin masquerade
   // Multi-child support: persist selected student in localStorage
   const [selectedStudentId, setSelectedStudentId] = useState(
     () => localStorage.getItem('manabee_selected_student') || 's1'
@@ -42,10 +45,49 @@ export default function App() {
   const [schools, setSchools] = useState<StudentSchool[]>([]);
   const [questions, setQuestions] = useState<QuestionJob[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [studentsList, setStudentsList] = useState<User[]>([]);
 
   // Data Loading with optional studentId filtering for multi-child support
-  const refreshData = (studentId?: string) => {
+  const refreshData = async (studentId?: string) => {
     const targetStudentId = studentId || selectedStudentId;
+
+    // Load static data (Schools, Questions)
+    // Note: detailed implementation should move to Firebase Service entirely in production
+    if (import.meta.env.VITE_APP_MODE === 'firebase') {
+      const { firestoreOperations } = await import('./services/firebaseService');
+
+      // Fetch students list for Tutors and Guardians
+      if (user?.role === UserRole.GUARDIAN || user?.role === UserRole.TUTOR) {
+        const linked = await firestoreOperations.getLinkedStudents(user.id, user.role);
+        setStudentsList(linked);
+
+        // If current selected student is not in the list (and list is not empty), select first
+        if (linked.length > 0 && !linked.find(s => s.id === targetStudentId)) {
+          handleSelectStudent(linked[0].id);
+        }
+      }
+
+      // Fetch Real Data
+      const [fbSchools, fbLesson, fbQuestions] = await Promise.all([
+        firestoreOperations.getSchools(targetStudentId),
+        firestoreOperations.getLesson('l1'), // Default lesson for now
+        firestoreOperations.getQuestions(user.role, user.id)
+      ]);
+
+      if (fbSchools) setSchools(fbSchools);
+      if (fbLesson) setLesson(fbLesson);
+      if (fbQuestions) setQuestions(fbQuestions);
+
+      // We skip StorageService fallback if we successfully fetched from Firebase
+      // But we might want audit logs from StorageService? logs are not yet in FirebaseService fully?
+      // getAuditLogs IS in firebaseService.
+      const fbLogs = await firestoreOperations.getAuditLogs();
+      setLogs(fbLogs);
+
+      return; // Exit early to avoid overwriting with local data
+    }
+
+    // Existing StorageService fallback / hybrid
     const allSchools = StorageService.loadSchools();
     const allQuestions = StorageService.loadQuestions();
 
@@ -72,16 +114,55 @@ export default function App() {
     }
   }, [selectedStudentId, user?.role]);
 
+  // Real-time user updates (XP, Level, Badges)
+  useEffect(() => {
+    if (!user) return;
+
+    // Use dynamic import to avoid circular dependencies if any, 
+    // or just import it at top level if clean. 
+    // For now, let's assume top level import is fine, but I'll add it to the file.
+    import('./services/gamificationService').then((module) => {
+      const gamificationService = module.default;
+      const unsubscribe = gamificationService.subscribeToUpdates(user.id, (stats) => {
+        setUser(prev => prev ? { ...prev, ...stats } : null);
+      });
+      return () => unsubscribe();
+    });
+  }, [user?.id]);
+
+  // Listen for background data sync events (e.g. from Firebase)
+  useEffect(() => {
+    const handleSync = () => {
+      console.log('Data synced event received, refreshing...');
+      refreshData();
+    };
+    window.addEventListener('manabee-data-synced', handleSync);
+    return () => window.removeEventListener('manabee-data-synced', handleSync);
+  }, [selectedStudentId, user?.role]);
+
   // Handler for student selection with localStorage persistence
   const handleSelectStudent = (id: string) => {
     setSelectedStudentId(id);
     localStorage.setItem('manabee_selected_student', id);
   };
 
-  const handleLoginSuccess = (u: User) => {
+  const handleLoginSuccess = async (u: User) => {
     setUser(u);
     setViewAsStudent(false);
+    setMasqueradeUser(null);
     refreshData();
+
+    // Update activity streak
+    if (import.meta.env.VITE_APP_MODE === 'firebase') {
+      try {
+        const { firestoreOperations } = await import('./services/firebaseService');
+        const { streak, xp, level } = await firestoreOperations.updateUserActivity(u.id);
+        // Update local user state with new stats immediately
+        setUser(prev => prev ? { ...prev, streak, xp, level } : null);
+      } catch (e) {
+        console.error('Failed to update activity', e);
+      }
+    }
   };
 
   const handleLogout = async () => {
@@ -95,6 +176,7 @@ export default function App() {
     }
     setUser(null);
     setViewAsStudent(false);
+    setMasqueradeUser(null);
   };
 
   const handleUpdateLesson = (updated: Lesson) => {
@@ -183,190 +265,178 @@ export default function App() {
   }
 
   // Effect: Masquerade as Student if viewAsStudent is true
-  const effectiveUser = viewAsStudent
+  // Effect: Masquerade has priority, then Student View
+  const effectiveUser = masqueradeUser || (viewAsStudent
     ? {
       ...user,
       role: UserRole.STUDENT,
       id: INITIAL_STUDENT_CONTEXT.id,
       name: `${user.name} (Preview)`
     }
-    : user;
+    : user);
 
   return (
     <HashRouter>
-      <AppLayout
-        currentUser={effectiveUser}
-        onLogout={handleLogout}
-        originalRole={user.role}
-        isStudentView={viewAsStudent}
-        onToggleStudentView={() => setViewAsStudent(!viewAsStudent)}
-      >
-        <Routes>
-          <Route path="/" element={
-            <>
-              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
-                <StudentSelector
-                  students={MOCK_STUDENTS}
-                  selectedStudentId={selectedStudentId}
-                  onSelectStudent={handleSelectStudent}
-                  currentUser={user}
+      <GlobalErrorBoundary currentUser={user}>
+        <AppLayout
+          currentUser={effectiveUser}
+          onLogout={handleLogout}
+          originalRole={user.role}
+          isStudentView={viewAsStudent}
+          onToggleStudentView={() => setViewAsStudent(!viewAsStudent)}
+          isMasquerading={!!masqueradeUser}
+          onExitMasquerade={() => setMasqueradeUser(null)}
+        >
+          <Routes>
+            <Route path="/" element={
+              <>
+                {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
+                  <StudentSelector
+                    students={studentsList}
+                    selectedStudentId={selectedStudentId}
+                    onSelectStudent={handleSelectStudent}
+                    currentUser={user}
+                  />
+                )}
+                <Dashboard
+                  currentUser={effectiveUser}
+                  schools={schools}
+                  lesson={lesson}
+                  logs={logs}
+                  questions={questions}
+                  studentId={selectedStudentId}
+                  students={studentsList}
                 />
-              )}
-              <Dashboard currentUser={effectiveUser} schools={schools} lesson={lesson} logs={logs} questions={questions} studentId={selectedStudentId} />
-            </>
-          } />
+              </>
+            } />
 
-          <Route path="/questions" element={
-            effectiveUser.role === UserRole.TUTOR ? (
-              <ReviewQueue currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
-            ) : (
-              <QuestionBoard currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
-            )
-          } />
+            <Route path="/questions" element={
+              effectiveUser.role === UserRole.TUTOR ? (
+                <ReviewQueue currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
+              ) : (
+                <QuestionBoard currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
+              )
+            } />
 
-          <Route path="/homework" element={
-            <>
-              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
-                <StudentSelector
-                  students={MOCK_STUDENTS}
-                  selectedStudentId={selectedStudentId}
-                  onSelectStudent={handleSelectStudent}
-                  currentUser={user}
+
+            <Route path="/homework" element={
+              <>
+                {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
+                  <StudentSelector
+                    students={studentsList}
+                    selectedStudentId={selectedStudentId}
+                    onSelectStudent={handleSelectStudent}
+                    currentUser={user}
+                  />
+                )}
+                <HomeworkPage
+                  lesson={lesson}
+                  currentUser={effectiveUser}
+                  onUpdateLesson={handleUpdateLesson}
                 />
-              )}
-              <HomeworkList
-                lesson={lesson}
-                currentUser={effectiveUser}
-                onUpdateLesson={handleUpdateLesson}
-                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-                studentId={selectedStudentId}
-              />
-            </>
-          } />
+              </>
+            } />
 
-          <Route path="/lessons/:id" element={
-            <>
-              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
-                <StudentSelector
-                  students={MOCK_STUDENTS}
-                  selectedStudentId={selectedStudentId}
-                  onSelectStudent={handleSelectStudent}
-                  currentUser={user}
-                />
-              )}
+            <Route path="/chat" element={
+              <CharacterChat currentUser={effectiveUser} />
+            } />
+
+            {/* Unified AI Assistant - combines Chat and Photo Questions */}
+            <Route path="/ai-assistant" element={
+              <AIAssistant currentUser={effectiveUser} questions={questions} onUpdate={refreshData} />
+            } />
+
+            <Route path="/goals" element={<GoalTracker currentUser={effectiveUser} />} />
+
+            <Route path="/calendar" element={<HomeworkCalendar currentUser={effectiveUser} />} />
+
+            <Route path="/lessons/:id" element={
               <LessonDetail
                 lesson={lesson}
                 currentUser={effectiveUser}
-                onUpdateLesson={handleUpdateLesson}
-                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+                onUpdate={handleUpdateLesson}
               />
-            </>
-          } />
+            } />
 
-          <Route path="/schools" element={
-            <>
-              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
-                <StudentSelector
-                  students={MOCK_STUDENTS}
-                  selectedStudentId={selectedStudentId}
-                  onSelectStudent={handleSelectStudent}
-                  currentUser={user}
-                />
-              )}
+            <Route path="/schools" element={
               <SchoolList
                 schools={schools}
                 currentUser={effectiveUser}
-                onUpdateSchool={handleUpdateSchool}
-                onAddSchool={handleAddSchool}
-                onDeleteSchool={handleDeleteSchool}
-                permissionMode={effectiveUser.role === UserRole.TUTOR ? 'strict' : 'collaborative'}
+                onUpdate={handleUpdateSchool}
+                onAdd={handleAddSchool}
+                onDelete={handleDeleteSchool}
               />
-            </>
-          } />
+            } />
 
-          <Route path="/scores" element={
-            <>
-              {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
-                <StudentSelector
-                  students={MOCK_STUDENTS}
-                  selectedStudentId={selectedStudentId}
-                  onSelectStudent={handleSelectStudent}
-                  currentUser={user}
+            <Route path="/scores" element={
+              <>
+                {user && (user.role === UserRole.GUARDIAN || user.role === UserRole.TUTOR) && (
+                  <StudentSelector
+                    students={studentsList}
+                    selectedStudentId={selectedStudentId}
+                    onSelectStudent={handleSelectStudent}
+                    currentUser={user}
+                  />
+                )}
+                <ExamScoreManager currentUser={effectiveUser} studentId={selectedStudentId} />
+              </>
+            } />
+
+            {/* Admin Routes */}
+            <Route path="/admin/users" element={
+              effectiveUser.role === UserRole.ADMIN ? (
+                <UserManagement
+                  currentUser={effectiveUser}
+                  onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+                  onMasquerade={(target) => setMasqueradeUser(target)}
                 />
-              )}
-              <ExamScoreManager
-                currentUser={effectiveUser}
-                schools={schools}
-                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-                studentId={selectedStudentId}
-              />
-            </>
-          } />
+              ) : <Navigate to="/" replace />
+            } />
+            <Route path="/admin/settings" element={
+              effectiveUser.role === UserRole.ADMIN ? (
+                <SystemSettings
+                  currentUser={effectiveUser}
+                  onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
+                />
+              ) : <Navigate to="/" replace />
+            } />
+            <Route path="/admin/usage" element={
+              effectiveUser.role === UserRole.ADMIN ? (
+                <UsageMonitor
+                  currentUser={effectiveUser}
+                  logs={logs}
+                />
+              ) : <Navigate to="/" replace />
+            } />
+            <Route path="/admin/database" element={
+              effectiveUser.role === UserRole.ADMIN ? (
+                <DatabaseSeeder
+                  onReset={() => {
+                    localStorage.clear();
+                    window.location.reload();
+                  }}
+                />
+              ) : <Navigate to="/" replace />
+            } />
 
-          {/* Student Feature Routes */}
-          <Route path="/calendar" element={
-            <HomeworkCalendar currentUser={effectiveUser} />
-          } />
-          <Route path="/goals" element={
-            <GoalTracker currentUser={effectiveUser} />
-          } />
-          <Route path="/chat" element={
-            <CharacterChat currentUser={effectiveUser} />
-          } />
+            <Route path="/reports" element={
+              <ReportExport currentUser={effectiveUser} studentId={selectedStudentId} />
+            } />
 
-          {/* Tutor Feature Routes */}
-          <Route path="/recording" element={
-            effectiveUser.role === UserRole.TUTOR || effectiveUser.role === UserRole.ADMIN ? (
-              <LessonRecorder currentUser={effectiveUser} studentId={selectedStudentId} />
-            ) : <Navigate to="/" replace />
-          } />
+            <Route path="/recording" element={
+              effectiveUser.role === UserRole.TUTOR || effectiveUser.role === UserRole.ADMIN ? (
+                <LessonRecorder currentUser={effectiveUser} studentId={selectedStudentId} />
+              ) : <Navigate to="/" replace />
+            } />
 
-          {/* Common Feature Routes */}
-          <Route path="/reports" element={
-            <ReportExport currentUser={effectiveUser} studentId={selectedStudentId} />
-          } />
-          <Route path="/notifications" element={
-            <NotificationCenter currentUser={effectiveUser} />
-          } />
+            <Route path="/notifications" element={<NotificationCenter currentUser={effectiveUser} />} />
 
-          {/* Admin Routes */}
-          <Route path="/admin/users" element={
-            effectiveUser.role === UserRole.ADMIN ? (
-              <UserManagement
-                currentUser={effectiveUser}
-                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-              />
-            ) : <Navigate to="/" replace />
-          } />
-          <Route path="/admin/settings" element={
-            effectiveUser.role === UserRole.ADMIN ? (
-              <SystemSettings
-                currentUser={effectiveUser}
-                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-              />
-            ) : <Navigate to="/" replace />
-          } />
-          <Route path="/admin/usage" element={
-            effectiveUser.role === UserRole.ADMIN ? (
-              <UsageMonitor
-                currentUser={effectiveUser}
-                logs={logs}
-              />
-            ) : <Navigate to="/" replace />
-          } />
-          <Route path="/admin/database" element={
-            effectiveUser.role === UserRole.ADMIN ? (
-              <DatabaseSeeder
-                currentUser={effectiveUser}
-                onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-              />
-            ) : <Navigate to="/" replace />
-          } />
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
 
-          {/* Fallback for old routes or mis-navigation */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AppLayout>
+          </Routes>
+        </AppLayout>
+      </GlobalErrorBoundary>
     </HashRouter>
   );
 }

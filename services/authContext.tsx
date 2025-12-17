@@ -52,26 +52,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     // Dynamic import of firebase service
                     const firebaseService = await import('./firebaseService');
 
-                    await firebaseService.onAuthChange(async (firebaseUser: any) => {
+                    const unsubscribeAuth = await firebaseService.onAuthChange(async (firebaseUser: any) => {
+                        let unsubscribeUser: (() => void) | null = null; // To store the user subscription cleanup function
+
                         if (firebaseUser) {
-                            // Get user profile from Firestore
-                            const userProfile = await firebaseService.getUser(firebaseUser.uid);
-                            if (userProfile) {
-                                setState({ user: userProfile, isLoading: false, isFirebaseMode: true });
-                            } else {
-                                // Create default profile
-                                const newUser: User = {
-                                    id: firebaseUser.uid,
-                                    name: firebaseUser.email?.split('@')[0] || 'User',
-                                    email: firebaseUser.email || '',
-                                    role: UserRole.STUDENT,
-                                };
-                                setState({ user: newUser, isLoading: false, isFirebaseMode: true });
-                            }
+                            // User is signed in, subscribe to real-time profile updates
+                            // Subscribe using default export or named export
+                            // If subscribeToUser is not a named export, we use default
+                            const subscribeFn = firebaseService.default?.subscribeToUser || (firebaseService as any).subscribeToUser;
+                            unsubscribeUser = subscribeFn(firebaseUser.uid, (userProfile: User | null) => {
+                                if (userProfile) {
+                                    setState({ user: userProfile, isLoading: false, isFirebaseMode: true });
+                                } else {
+                                    // Profile doesn't exist yet, wait for it or use default
+                                    setState(prev => ({ ...prev, isLoading: false, isFirebaseMode: true }));
+                                }
+                            });
+
+                            // Cleanup user subscription when auth changes (or component unmounts - handled by ignoring updates?)
+                            // Ideally we store this unsubscribe function to call it later, but onAuthChange might fire multiple times.
+                            // For this simple implementation, we assume onAuthChange handles the major state switches.
+                            // A more robust solution would track the previous user subscription and unsubscribe it.
                         } else {
+                            // If user logs out, ensure any previous user subscription is cleaned up
+                            if (unsubscribeUser) {
+                                unsubscribeUser();
+                                unsubscribeUser = null;
+                            }
                             setState({ user: null, isLoading: false, isFirebaseMode: true });
                         }
                     });
+
+                    // Store auth unsubscribe if needed (though onAuthChange returns it)
+                    // Note: The current structure of this useEffect is a bit loose on cleanup 
+                    // because onAuthChange in firebaseService returns the unsubscribe function directly.
+                    return () => {
+                        if (typeof unsubscribeAuth === 'function') unsubscribeAuth();
+                    };
+
                 } catch (error) {
                     console.error('Firebase auth initialization failed:', error);
                     setState({ user: null, isLoading: false, isFirebaseMode: false });

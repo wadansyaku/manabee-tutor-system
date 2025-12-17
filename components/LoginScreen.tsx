@@ -22,13 +22,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     // Check if Firebase mode is enabled
     const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
 
-    // Demo accounts for Firebase mode
-    const demoAccounts = [
-        { email: 'student@demo.manabee.jp', role: '生徒', icon: '👦', password: 'demo1234' },
-        { email: 'parent@demo.manabee.jp', role: '保護者', icon: '👩', password: 'demo1234' },
-        { email: 'tutor@demo.manabee.jp', role: '講師', icon: '👨‍🏫', password: 'demo1234' },
-        { email: 'admin@demo.manabee.jp', role: '管理者', icon: '⚙️', password: 'demo1234' },
-    ];
+
 
     const handleEmailSubmit = async () => {
         if (!email) {
@@ -156,22 +150,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         setIsLoading(false);
     };
 
-    const handleDemoLogin = async (account: typeof demoAccounts[0]) => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const { firebaseLogin } = await import('../services/firebaseService');
-            const res = await firebaseLogin(account.email, account.password);
-            if (res.success && res.user) {
-                onLoginSuccess(res.user);
-            } else {
-                setError(res.error || 'デモログインに失敗しました');
-            }
-        } catch (err: any) {
-            setError(err.message || 'デモログインエラー');
-        }
-        setIsLoading(false);
-    };
+
 
     const handleChangePassword = async () => {
         if (!newPassword || newPassword.length < 4) {
@@ -478,24 +457,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     </div>
                 )}
 
-                {/* Demo Login Buttons (Firebase mode) */}
-                {isFirebaseMode && mode === 'login' && step === 'email' && (
-                    <div className="mt-6 pt-6 border-t border-white/10">
-                        <p className="text-white/40 text-xs mb-3 text-center">デモアカウントでログイン</p>
-                        <div className="grid grid-cols-2 gap-2">
-                            {demoAccounts.map(acc => (
-                                <button
-                                    key={acc.email}
-                                    onClick={() => handleDemoLogin(acc)}
-                                    disabled={isLoading}
-                                    className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded-xl text-white/70 hover:text-white text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    <span className="text-lg">{acc.icon}</span> {acc.role}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
+
 
                 {/* Quick Login Buttons (Local mode) */}
                 {!isFirebaseMode && (

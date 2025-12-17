@@ -1,18 +1,22 @@
-// Notification Service for Homework Reminders
-// Uses Browser Notification API
+// Notification Service for Homework Reminders and Level-up Notifications
+// Uses Browser Notification API and FCM for Push Notifications
 
 interface NotificationPreferences {
     enabled: boolean;
     reminderDays: number[]; // e.g., [0, 1] = today and tomorrow
+    pushEnabled: boolean;
+    fcmToken?: string;
 }
 
 const NOTIFICATION_PREFS_KEY = 'manabee_notification_prefs';
 const LAST_CHECK_KEY = 'manabee_notification_last_check';
+const FCM_TOKEN_KEY = 'manabee_fcm_token';
 
 class NotificationService {
     private preferences: NotificationPreferences = {
         enabled: false,
         reminderDays: [0, 1], // Default: notify on day of and day before
+        pushEnabled: false,
     };
 
     constructor() {
@@ -77,7 +81,7 @@ class NotificationService {
     }
 
     // Send a notification
-    private sendNotification(title: string, body: string, tag?: string): void {
+    public sendNotification(title: string, body: string, tag?: string): void {
         if (!this.isSupported() || !this.preferences.enabled) return;
         if (Notification.permission !== 'granted') return;
 
@@ -160,9 +164,96 @@ class NotificationService {
             'test'
         );
     }
+
+    /**
+     * Send level-up push notification
+     */
+    async sendLevelUpNotification(userId: string, newLevel: number, xpGained: number): Promise<void> {
+        // Send local notification
+        this.sendNotification(
+            `🎉 レベルアップ！ Lv.${newLevel}`,
+            `おめでとうございます！${xpGained}XPを獲得してレベル${newLevel}に到達しました！`,
+            'level-up'
+        );
+
+        // If push notifications are enabled, send via FCM
+        if (this.preferences.pushEnabled && this.preferences.fcmToken) {
+            try {
+                const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+                if (isFirebaseMode) {
+                    const { getFunctions, httpsCallable } = await import('firebase/functions');
+                    const functions = getFunctions();
+                    const sendPush = httpsCallable(functions, 'sendPushNotification');
+                    await sendPush({
+                        userId,
+                        title: `🎉 レベルアップ！ Lv.${newLevel}`,
+                        body: `おめでとうございます！レベル${newLevel}に到達しました！`,
+                        data: { type: 'level_up', level: newLevel, xpGained }
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to send FCM level-up notification:', error);
+            }
+        }
+    }
+
+    /**
+     * Send badge earned notification
+     */
+    sendBadgeNotification(badgeName: string, badgeIcon: string, description: string): void {
+        this.sendNotification(
+            `🏆 バッジ獲得: ${badgeName}`,
+            description,
+            'badge-earned'
+        );
+    }
+
+    /**
+     * Register FCM token for push notifications
+     */
+    async registerFCMToken(userId: string): Promise<boolean> {
+        try {
+            const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+            if (!isFirebaseMode) return false;
+
+            const { getMessaging, getToken } = await import('firebase/messaging');
+            const messaging = getMessaging();
+
+            // Get FCM token
+            const token = await getToken(messaging, {
+                vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
+            });
+
+            if (token) {
+                this.preferences.fcmToken = token;
+                this.preferences.pushEnabled = true;
+                this.savePreferences();
+                localStorage.setItem(FCM_TOKEN_KEY, token);
+
+                // Register token with backend
+                const { getFunctions, httpsCallable } = await import('firebase/functions');
+                const functions = getFunctions();
+                const registerToken = httpsCallable(functions, 'registerFCMToken');
+                await registerToken({ userId, token });
+
+                return true;
+            }
+        } catch (error) {
+            console.error('Failed to register FCM token:', error);
+        }
+        return false;
+    }
+
+    /**
+     * Check if push notifications are enabled
+     */
+    isPushEnabled(): boolean {
+        return this.preferences.pushEnabled && !!this.preferences.fcmToken;
+    }
 }
 
 // Export singleton
 export const notificationService = new NotificationService();
 
 export default notificationService;
+

@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../../types';
-import { GoogleGenAI } from '@anthropic-ai/sdk';
 
 interface CharacterChatProps {
     currentUser: User;
@@ -80,6 +79,9 @@ export const CharacterChat: React.FC<CharacterChatProps> = ({ currentUser, subje
     const [showCharacterSelect, setShowCharacterSelect] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
@@ -110,18 +112,40 @@ export const CharacterChat: React.FC<CharacterChatProps> = ({ currentUser, subje
         }
     };
 
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setSelectedImage(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const sendMessage = async () => {
-        if (!input.trim() || isLoading) return;
+        if ((!input.trim() && !selectedImage) || isLoading) return;
 
         const userMessage: Message = {
             id: Date.now().toString(),
             role: 'user',
-            content: input,
+            content: input, // We'll display image separately in chat bubble if we want, or just generic "Image sent"
             timestamp: new Date(),
         };
 
+        // If image exists, append specific indicator to local message content for now
+        // Or handle message structure update to support images. 
+        // For simplicity, we just keep text content but maybe append (画像あり)
+        if (selectedImage) {
+            userMessage.content = input + (input ? '\n' : '') + '(画像を送信しました)';
+        }
+
         setMessages(prev => [...prev, userMessage]);
+        const currentImage = selectedImage;
+        const currentInput = input;
+
         setInput('');
+        setSelectedImage(null);
         setIsLoading(true);
 
         try {
@@ -131,19 +155,39 @@ export const CharacterChat: React.FC<CharacterChatProps> = ({ currentUser, subje
                 throw new Error('Gemini API key not configured');
             }
 
+            const apiContents = [
+                { role: 'user', parts: [{ text: selectedCharacter.systemPrompt }] },
+                { role: 'model', parts: [{ text: 'わかりました！そのキャラクターとしてお答えします。' }] },
+                ...messages.map(m => ({
+                    role: m.role === 'user' ? 'user' : 'model',
+                    parts: [{ text: m.content }]
+                }))
+            ];
+
+            // Add new message
+            const newParts: any[] = [];
+            if (currentInput) {
+                newParts.push({ text: currentInput });
+            }
+            if (currentImage) {
+                // Extract base64 (remove data:image/jpeg;base64, prefix)
+                const base64Data = currentImage.split(',')[1];
+                const mimeType = currentImage.split(';')[0].split(':')[1];
+                newParts.push({
+                    inline_data: {
+                        mime_type: mimeType,
+                        data: base64Data
+                    }
+                });
+            }
+
+            apiContents.push({ role: 'user', parts: newParts });
+
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [
-                        { role: 'user', parts: [{ text: selectedCharacter.systemPrompt }] },
-                        { role: 'model', parts: [{ text: 'わかりました！そのキャラクターとしてお答えします。' }] },
-                        ...messages.map(m => ({
-                            role: m.role === 'user' ? 'user' : 'model',
-                            parts: [{ text: m.content }]
-                        })),
-                        { role: 'user', parts: [{ text: input }] }
-                    ],
+                    contents: apiContents,
                     generationConfig: {
                         temperature: 0.7,
                         maxOutputTokens: 500,
@@ -218,8 +262,8 @@ export const CharacterChat: React.FC<CharacterChatProps> = ({ currentUser, subje
                                 key={char.id}
                                 onClick={() => changeCharacter(char)}
                                 className={`p-3 rounded-xl text-center transition-all ${selectedCharacter.id === char.id
-                                        ? 'bg-white text-gray-800'
-                                        : 'bg-white/20 hover:bg-white/30'
+                                    ? 'bg-white text-gray-800'
+                                    : 'bg-white/20 hover:bg-white/30'
                                     }`}
                             >
                                 <span className="text-2xl block mb-1">{char.avatar}</span>
@@ -244,8 +288,8 @@ export const CharacterChat: React.FC<CharacterChatProps> = ({ currentUser, subje
                         )}
                         <div
                             className={`max-w-[75%] px-4 py-3 rounded-2xl ${message.role === 'user'
-                                    ? 'bg-blue-500 text-white rounded-br-sm'
-                                    : 'bg-white shadow-sm border border-gray-100 rounded-bl-sm'
+                                ? 'bg-blue-500 text-white rounded-br-sm'
+                                : 'bg-white shadow-sm border border-gray-100 rounded-bl-sm'
                                 }`}
                         >
                             <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -271,7 +315,38 @@ export const CharacterChat: React.FC<CharacterChatProps> = ({ currentUser, subje
 
             {/* Input */}
             <div className="p-4 border-t border-gray-100 bg-white">
+                {/* Image Preview */}
+                {selectedImage && (
+                    <div className="mb-2 relative inline-block">
+                        <img
+                            src={selectedImage}
+                            alt="Preview"
+                            className="h-20 rounded-lg border border-gray-200 object-cover"
+                        />
+                        <button
+                            onClick={() => setSelectedImage(null)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex gap-2">
+                    <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                    />
+                    <button
+                        className="p-3 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                        title="画像をアップロード"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        📷
+                    </button>
                     <input
                         type="text"
                         value={input}
@@ -283,10 +358,10 @@ export const CharacterChat: React.FC<CharacterChatProps> = ({ currentUser, subje
                     />
                     <button
                         onClick={sendMessage}
-                        disabled={isLoading || !input.trim()}
-                        className={`px-6 py-3 rounded-xl font-medium transition-all ${isLoading || !input.trim()
-                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                : `bg-gradient-to-r ${selectedCharacter.color} text-white hover:shadow-lg`
+                        disabled={isLoading || (!input.trim() && !selectedImage)}
+                        className={`px-6 py-3 rounded-xl font-medium transition-all ${isLoading || (!input.trim() && !selectedImage)
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            : `bg-gradient-to-r ${selectedCharacter.color} text-white hover:shadow-lg`
                             }`}
                     >
                         送信

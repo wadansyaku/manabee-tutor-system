@@ -321,6 +321,9 @@ class FirebaseDataStore implements DataStore {
 
     // Sync global/shared data
     await this.syncSharedData();
+
+    // Notify app that data is fresh
+    window.dispatchEvent(new CustomEvent('manabee-data-synced'));
   }
 
   private async syncStudentData(studentId: string) {

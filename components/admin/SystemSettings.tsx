@@ -16,6 +16,7 @@ interface SystemConfig {
     enableNotifications: boolean;
     enableAIFeatures: boolean;
     geminiApiKeyMasked: string;
+    costLimit?: number;
 }
 
 const STORAGE_KEY_SYSTEM_CONFIG = 'manabee_system_config_v1';
@@ -28,7 +29,8 @@ const DEFAULT_CONFIG: SystemConfig = {
     sessionTimeoutMinutes: 60,
     enableNotifications: true,
     enableAIFeatures: true,
-    geminiApiKeyMasked: '****-****-****'
+    geminiApiKeyMasked: '****-****-****',
+    costLimit: 50
 };
 
 const loadConfig = (): SystemConfig => {
@@ -151,16 +153,26 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser, onA
                             <label className="text-xs font-bold text-gray-500 mb-1 block">APIキー</label>
                             <div className="flex gap-2">
                                 <input
-                                    type="password"
+                                    type="text"
                                     value={config.geminiApiKeyMasked}
-                                    disabled
-                                    className="flex-1 border border-gray-200 rounded-xl px-4 py-2 bg-gray-50 text-gray-500"
+                                    onChange={e => handleChange('geminiApiKeyMasked', e.target.value)}
+                                    className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-gray-700 font-mono text-sm"
+                                    placeholder="Enter API Key"
                                 />
-                                <button className="px-4 py-2 bg-gray-100 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">
-                                    変更
-                                </button>
                             </div>
                             <p className="text-xs text-gray-400 mt-1">本番環境ではCloud Functions経由で管理</p>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 mb-1 block">
+                                コスト上限 (USD/月)
+                            </label>
+                            <input
+                                type="number"
+                                value={config.costLimit || 50}
+                                onChange={e => handleChange('costLimit', parseInt(e.target.value) || 0)}
+                                className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                                min={0}
+                            />
                         </div>
                     </div>
                 </div>
@@ -228,8 +240,8 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser, onA
                     onClick={handleSave}
                     disabled={!hasChanges}
                     className={`flex-1 py-3 rounded-xl font-semibold transition ${hasChanges
-                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                         }`}
                 >
                     {hasChanges ? '設定を保存' : '変更なし'}
