@@ -20,6 +20,18 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
     
+    // Check if user is guardian of the specified student
+    function isGuardianOf(studentId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedStudents.hasAny([studentId]);
+    }
+    
+    // Check if user can access student data (owner, guardian, or tutor/admin)
+    function canAccessStudentData(studentId) {
+      return isOwner(studentId) || isGuardianOf(studentId) || isTutor();
+    }
+    
     // Users collection
     match /users/{userId} {
       // Admins can read/write all users
@@ -33,9 +45,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Schools collection
+    // Schools collection - student-specific data
     match /schools/{schoolId} {
-      allow read: if isSignedIn();
+      // Read: owner, their guardian, or tutors/admin
+      allow read: if isSignedIn() && 
+        (resource.data.studentId == request.auth.uid || 
+         isTutor() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('linkedStudents', []).hasAny([resource.data.studentId])));
       allow create, update: if isTutor();
       allow delete: if isAdmin();
     }
@@ -47,10 +64,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Questions collection
+    // Questions collection - student-specific data
     match /questions/{questionId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn(); // Students can create questions
+      // Read: student owner, their guardian, or tutors/admin
+      allow read: if isSignedIn() && 
+        (resource.data.studentId == request.auth.uid || 
+         isTutor() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('linkedStudents', []).hasAny([resource.data.studentId])));
+      // Create: any signed-in user (students create their own questions)
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
       allow update: if isTutor();
       allow delete: if isAdmin();
     }

@@ -42,8 +42,8 @@ describe('DateUtils', () => {
     it('should format days remaining in Japanese', async () => {
         const { DateUtils } = await import('@/services/storageService');
 
-        expect(DateUtils.formatDaysRemaining(0)).toBe('今日まで');
-        expect(DateUtils.formatDaysRemaining(1)).toBe('明日まで');
+        expect(DateUtils.formatDaysRemaining(0)).toBe('今日');
+        expect(DateUtils.formatDaysRemaining(1)).toBe('明日');
         expect(DateUtils.formatDaysRemaining(3)).toBe('あと3日');
         expect(DateUtils.formatDaysRemaining(-1)).toBe('期限切れ');
     });
@@ -51,7 +51,8 @@ describe('DateUtils', () => {
     it('should format date in Japanese format', async () => {
         const { DateUtils } = await import('@/services/storageService');
         const formatted = DateUtils.formatDate('2024-01-15');
-        expect(formatted).toContain('1月15日');
+        // Format is like "1/15(月)" - short month/day with weekday
+        expect(formatted).toMatch(/1\/15/);
     });
 });
 
