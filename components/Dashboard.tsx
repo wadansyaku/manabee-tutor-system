@@ -57,7 +57,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
             {/* Hero Header with Enhanced Animation */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-3xl p-6 text-white shadow-2xl">
+            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-3xl p-6 text-white shadow-2xl animate-slide-up">
                 {/* Animated Background Elements */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl animate-pulse"></div>
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
@@ -122,7 +122,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
             </div>
 
             {/* Daily Bonus Banner */}
-            <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200 flex items-center justify-between animate-slide-up animate-delay-1">
                 <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-xl flex items-center justify-center text-2xl shadow-lg animate-bounce">
                         🎁
@@ -138,7 +138,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
             </div>
 
             {/* Today's Missions - Enhanced */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 animate-slide-up animate-delay-2">
                 <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         🎯 今日のミッション
@@ -185,7 +185,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
             </div>
 
             {/* Progress & Actions Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slide-up animate-delay-3">
                 {/* Circular Progress */}
                 <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
                     <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 text-center">進捗</h3>
@@ -295,7 +295,7 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             {/* Premium Welcome Banner - Navy & Gold */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 text-white shadow-2xl border border-amber-500/20">
+            <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 text-white shadow-2xl border border-amber-500/20 animate-slide-up">
                 {/* Decorative Elements */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-400/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/2"></div>
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-amber-500/5 to-transparent rounded-full translate-y-1/2 -translate-x-1/2"></div>
@@ -319,7 +319,7 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
             </div>
 
             {/* Premium Stats Grid - Gradient borders with gold accents */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up animate-delay-1">
                 <div className="relative bg-white rounded-2xl p-5 shadow-lg border border-slate-100 overflow-hidden group hover:shadow-xl transition-shadow">
                     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600"></div>
                     <div className="flex items-center gap-3 mb-2">
@@ -359,7 +359,7 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
             </div>
 
             {/* Two-column layout for main content */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-up animate-delay-2">
                 {/* Homework Progress - Takes 2 columns */}
                 <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
                     <div className="flex items-center justify-between mb-6">
@@ -427,7 +427,7 @@ const GuardianDashboard: React.FC<DashboardProps> = ({ currentUser, schools, les
             </div>
 
             {/* Upcoming School Events - Premium Table */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 animate-slide-up animate-delay-3">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg">🏫</div>
                     <h3 className="text-lg font-bold text-slate-900">受験スケジュール</h3>
@@ -491,7 +491,7 @@ const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
             {/* Clean Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between animate-slide-up">
                 <div>
                     <p className="text-sm text-blue-600 font-medium">講師ダッシュボード</p>
                     <h1 className="text-2xl font-bold text-gray-900">{currentUser.name}先生</h1>
@@ -526,7 +526,7 @@ const TutorDashboard: React.FC<DashboardProps> = ({ currentUser, schools, lesson
             )}
 
             {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-up animate-delay-2">
                 {/* Left Column - Stats & Quick Actions */}
                 <div className="space-y-4">
                     {/* Compact Stats */}
@@ -636,7 +636,7 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
             {/* Minimal Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between animate-slide-up">
                 <div>
                     <p className="text-sm text-gray-500 font-medium">管理コンソール</p>
                     <h1 className="text-2xl font-bold text-gray-900">システム概要</h1>
@@ -650,7 +650,7 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
             </div>
 
             {/* Clean Stats Row */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4 animate-slide-up animate-delay-1">
                 <div className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-gray-400 text-sm">ユーザー</span>
@@ -686,7 +686,7 @@ const AdminDashboard: React.FC<DashboardProps> = ({ currentUser, logs }) => {
             </div>
 
             {/* Two Column Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-up animate-delay-2">
                 {/* Quick Actions - Clean List */}
                 <div className="lg:col-span-1 bg-white border border-gray-200 rounded-xl p-5">
                     <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">クイックアクション</h3>
