@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { User } from '../../types';
+import { transcribeAndSummarize } from '../../services/transcriptionService';
 
 interface LessonRecorderProps {
     currentUser: User;
@@ -10,11 +11,13 @@ interface LessonRecording {
     id: string;
     date: string;
     duration: number;
-    status: 'recording' | 'transcribing' | 'summarizing' | 'completed';
+    status: 'recording' | 'transcribing' | 'summarizing' | 'completed' | 'error';
     audioUrl?: string;
+    audioBlob?: Blob;
     transcript?: string;
     summary?: string;
     highlights?: string[];
+    error?: string;
 }
 
 export const LessonRecorder: React.FC<LessonRecorderProps> = ({ currentUser, studentId }) => {
@@ -37,6 +40,7 @@ export const LessonRecorder: React.FC<LessonRecorderProps> = ({ currentUser, stu
     const [currentRecording, setCurrentRecording] = useState<LessonRecording | null>(null);
     const [recordingTime, setRecordingTime] = useState(0);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<number | null>(null);
 
     const startRecording = async () => {
@@ -44,14 +48,14 @@ export const LessonRecorder: React.FC<LessonRecorderProps> = ({ currentUser, stu
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
 
-            const chunks: Blob[] = [];
-            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+            mediaRecorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
 
             mediaRecorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'audio/webm' });
+                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 const url = URL.createObjectURL(blob);
-                handleRecordingComplete(url);
+                handleRecordingComplete(url, blob);
                 stream.getTracks().forEach(track => track.stop());
             };
 
@@ -89,39 +93,61 @@ export const LessonRecorder: React.FC<LessonRecorderProps> = ({ currentUser, stu
         }
     };
 
-    const handleRecordingComplete = async (audioUrl: string) => {
+    const handleRecordingComplete = async (audioUrl: string, audioBlob: Blob) => {
         if (!currentRecording) return;
 
         // Update to transcribing status
-        setCurrentRecording({ ...currentRecording, status: 'transcribing', audioUrl, duration: recordingTime });
-
-        // Simulate transcription (in real app, use Whisper API or similar)
-        await new Promise(r => setTimeout(r, 2000));
-
-        const mockTranscript = `本日の授業では、${new Date().toLocaleDateString('ja-JP')}に${recordingTime}秒間の授業を行いました。
-内容は算数の基礎練習と復習を中心に進めました。生徒は集中して取り組んでいました。`;
-
-        setCurrentRecording(prev => prev ? { ...prev, status: 'summarizing', transcript: mockTranscript } : null);
-
-        // Simulate summarization with Gemini
-        await new Promise(r => setTimeout(r, 1500));
-
-        const completed: LessonRecording = {
+        setCurrentRecording({
             ...currentRecording,
+            status: 'transcribing',
             audioUrl,
-            duration: recordingTime,
-            status: 'completed',
-            transcript: mockTranscript,
-            summary: '算数の基礎練習と復習。生徒の理解度は良好。継続的な練習が効果を発揮している。',
-            highlights: [
-                '計算スピードが向上',
-                '理解度チェックで正答率85%',
-                '次回は応用問題に挑戦予定'
-            ]
-        };
+            audioBlob,
+            duration: recordingTime
+        });
 
-        setRecordings([completed, ...recordings]);
-        setCurrentRecording(null);
+        try {
+            // Use real transcription service (Whisper API + Gemini)
+            const result = await transcribeAndSummarize(audioBlob);
+
+            if (!result.transcription.success) {
+                throw new Error(result.transcription.error || 'Transcription failed');
+            }
+
+            setCurrentRecording(prev => prev ? {
+                ...prev,
+                status: 'summarizing',
+                transcript: result.transcription.text
+            } : null);
+
+            // Summarization is done in the same call
+            const completed: LessonRecording = {
+                ...currentRecording,
+                audioUrl,
+                duration: recordingTime,
+                status: 'completed',
+                transcript: result.transcription.text,
+                summary: result.summarization?.summary || '要約を生成できませんでした',
+                highlights: result.summarization?.highlights || [],
+            };
+
+            setRecordings([completed, ...recordings]);
+            setCurrentRecording(null);
+
+        } catch (error: any) {
+            console.error('Transcription error:', error);
+
+            // Still save the recording even if transcription failed
+            const errorRecording: LessonRecording = {
+                ...currentRecording,
+                audioUrl,
+                duration: recordingTime,
+                status: 'error',
+                error: error.message || '文字起こしに失敗しました',
+            };
+
+            setRecordings([errorRecording, ...recordings]);
+            setCurrentRecording(null);
+        }
     };
 
     const formatTime = (seconds: number) => {

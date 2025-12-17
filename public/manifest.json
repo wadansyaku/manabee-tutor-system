@@ -64,9 +64,9 @@
     "lang": "ja",
     "shortcuts": [
         {
-            "name": "宿題リスト",
-            "short_name": "宿題",
-            "url": "/#/homework",
+            "name": "宿題カレンダー",
+            "short_name": "カレンダー",
+            "url": "/#/calendar",
             "icons": [
                 {
                     "src": "/icons/homework.png",
@@ -75,9 +75,31 @@
             ]
         },
         {
-            "name": "質問する",
-            "short_name": "質問",
-            "url": "/#/questions",
+            "name": "AIチャット",
+            "short_name": "チャット",
+            "url": "/#/chat",
+            "icons": [
+                {
+                    "src": "/icons/question.png",
+                    "sizes": "96x96"
+                }
+            ]
+        },
+        {
+            "name": "目標トラッカー",
+            "short_name": "目標",
+            "url": "/#/goals",
+            "icons": [
+                {
+                    "src": "/icons/homework.png",
+                    "sizes": "96x96"
+                }
+            ]
+        },
+        {
+            "name": "通知センター",
+            "short_name": "通知",
+            "url": "/#/notifications",
             "icons": [
                 {
                     "src": "/icons/question.png",
