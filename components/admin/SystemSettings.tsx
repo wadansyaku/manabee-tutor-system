@@ -7,6 +7,13 @@ interface SystemSettingsProps {
     onAudit: (action: string, summary: string) => void;
 }
 
+interface ApiUsageStats {
+    totalRequests: number;
+    totalTokens: number;
+    estimatedCost: number;
+    lastReset: string;
+}
+
 interface SystemConfig {
     maintenanceMode: boolean;
     maintenanceMessage: string;
@@ -16,10 +23,20 @@ interface SystemConfig {
     enableNotifications: boolean;
     enableAIFeatures: boolean;
     geminiApiKeyMasked: string;
-    costLimit?: number;
+    costLimit: number;
+    costAlertThreshold: number; // Percentage to trigger alert (e.g., 80)
+    apiUsage: ApiUsageStats;
 }
 
 const STORAGE_KEY_SYSTEM_CONFIG = 'manabee_system_config_v1';
+const STORAGE_KEY_API_USAGE = 'manabee_api_usage_v1';
+
+const DEFAULT_API_USAGE: ApiUsageStats = {
+    totalRequests: 0,
+    totalTokens: 0,
+    estimatedCost: 0,
+    lastReset: new Date().toISOString()
+};
 
 const DEFAULT_CONFIG: SystemConfig = {
     maintenanceMode: false,
@@ -30,7 +47,9 @@ const DEFAULT_CONFIG: SystemConfig = {
     enableNotifications: true,
     enableAIFeatures: true,
     geminiApiKeyMasked: '****-****-****',
-    costLimit: 50
+    costLimit: 50,
+    costAlertThreshold: 80,
+    apiUsage: DEFAULT_API_USAGE
 };
 
 const loadConfig = (): SystemConfig => {
@@ -168,11 +187,84 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ currentUser, onA
                             </label>
                             <input
                                 type="number"
-                                value={config.costLimit || 50}
+                                value={config.costLimit}
                                 onChange={e => handleChange('costLimit', parseInt(e.target.value) || 0)}
                                 className="w-full border border-gray-300 rounded-xl px-4 py-2"
                                 min={0}
                             />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 mb-1 block">
+                                アラート閾値 (%)
+                            </label>
+                            <input
+                                type="number"
+                                value={config.costAlertThreshold}
+                                onChange={e => handleChange('costAlertThreshold', parseInt(e.target.value) || 80)}
+                                className="w-full border border-gray-300 rounded-xl px-4 py-2"
+                                min={0}
+                                max={100}
+                            />
+                            <p className="text-xs text-gray-400 mt-1">この割合を超えるとアラート表示</p>
+                        </div>
+                    </div>
+
+                    {/* API Usage Dashboard */}
+                    <div className="mt-6 pt-6 border-t border-gray-100">
+                        <h4 className="text-sm font-bold text-gray-700 mb-4">📊 API使用状況</h4>
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                <p className="text-2xl font-bold text-indigo-600">{config.apiUsage?.totalRequests || 0}</p>
+                                <p className="text-xs text-gray-500">リクエスト数</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                <p className="text-2xl font-bold text-purple-600">{((config.apiUsage?.totalTokens || 0) / 1000).toFixed(1)}K</p>
+                                <p className="text-xs text-gray-500">トークン数</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                <p className="text-2xl font-bold text-emerald-600">${(config.apiUsage?.estimatedCost || 0).toFixed(2)}</p>
+                                <p className="text-xs text-gray-500">推定コスト</p>
+                            </div>
+                        </div>
+
+                        {/* Cost Progress Bar */}
+                        <div className="mb-4">
+                            <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>月間コスト使用率</span>
+                                <span>{((config.apiUsage?.estimatedCost || 0) / config.costLimit * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full transition-all duration-500 ${((config.apiUsage?.estimatedCost || 0) / config.costLimit * 100) >= config.costAlertThreshold
+                                            ? 'bg-red-500'
+                                            : ((config.apiUsage?.estimatedCost || 0) / config.costLimit * 100) >= 50
+                                                ? 'bg-yellow-500'
+                                                : 'bg-emerald-500'
+                                        }`}
+                                    style={{ width: `${Math.min(100, (config.apiUsage?.estimatedCost || 0) / config.costLimit * 100)}%` }}
+                                />
+                            </div>
+                            {((config.apiUsage?.estimatedCost || 0) / config.costLimit * 100) >= config.costAlertThreshold && (
+                                <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+                                    ⚠️ コスト上限の{config.costAlertThreshold}%を超えています
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => {
+                                    if (confirm('使用量カウンターをリセットしますか？')) {
+                                        handleChange('apiUsage', { ...DEFAULT_API_USAGE, lastReset: new Date().toISOString() });
+                                    }
+                                }}
+                                className="px-4 py-2 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+                            >
+                                カウンターをリセット
+                            </button>
+                            <span className="text-xs text-gray-400 flex items-center">
+                                最終リセット: {config.apiUsage?.lastReset ? new Date(config.apiUsage.lastReset).toLocaleDateString('ja-JP') : '-'}
+                            </span>
                         </div>
                     </div>
                 </div>
