@@ -40,16 +40,17 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
     const completionRate = totalHomework > 0 ? Math.round((completedHomework.length / totalHomework) * 100) : 0;
     const nextExam = upcomingEvents.find(e => e.type === 'exam');
 
-    // Enhanced gamification stats
+    // Gamification stats - initial values (will be loaded from user profile in production)
+    // TODO: Replace with actual user data from Firestore
     const stats = {
-        level: 12,
-        xp: 2450,
-        xpToNext: 3000,
-        streak: 5,
+        level: 1,
+        xp: 0,
+        xpToNext: 100,
+        streak: 0,
         todayTasks: homeworkItems.length,
-        badges: ['📚', '🌟', '🔥', '💪'],
-        dailyBonus: 25,
-        rank: '銀'
+        badges: [] as string[],
+        dailyBonus: 0,
+        rank: '初心者'
     };
 
     const xpProgress = (stats.xp / stats.xpToNext) * 100;

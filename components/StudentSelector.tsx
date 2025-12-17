@@ -16,11 +16,9 @@ interface StudentSelectorProps {
     currentUser: User;
 }
 
-// Mock students for demo - in production, this would come from Firestore
-export const MOCK_STUDENTS: Student[] = [
-    { id: 's1', name: '山田太郎', grade: '小6', avatar: '👦' },
-    { id: 's2', name: '山田花子', grade: '小4', avatar: '👧' },
-];
+// Students list - in production, this comes from Firestore
+// Empty by default for production use
+export const MOCK_STUDENTS: Student[] = [];
 
 export const StudentSelector: React.FC<StudentSelectorProps> = ({
     students,
