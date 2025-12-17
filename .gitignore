@@ -1,3 +1,12 @@
+# Dependencies
+node_modules
+functions/node_modules
+
+# Build outputs
+dist
+dist-ssr
+.next/
+
 # Logs
 logs
 *.log
@@ -7,13 +16,26 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-.next/
+# Environment
 .env
+.env.local
+*.local
 next-env.d.ts
+
+# Firebase
+.firebase
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Auth export files (sensitive)
+auth_users.json
+users.json
+
+# Test outputs
+test-results/
+playwright-report/
+coverage/
 
 # Editor directories and files
 .vscode/*
@@ -25,3 +47,7 @@ next-env.d.ts
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary files
+*.tmp
+*.temp

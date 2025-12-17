@@ -1,89 +1,77 @@
-# Implementation Tasks
+# 📋 Manabee Development Roadmap
 
-## 🚧 In Progress (M2)
-- [x] Homework List page（期限計算ユーティリティ、宿題トグル、手動追加/削除、監査ログ）
-- [x] Homework → Firebase 永続化（Auth/Firestore連携後に移行）※サービス実装完了
-- [x] 宿題のリマインド/期限切れ通知（設計）※notificationService.ts実装完了
-- [x] main 統合用の小さめPR運用開始（build/lint通過＋TODO更新を必須化）
+## ✅ 完了済み (2025-12)
 
-## ✅ M1: Foundation (This PR)
-- [x] **Architecture & Roles**
-    - [x] Define Types (Admin, Jobs, Scores)
-    - [x] Robust DateUtils (Fix countdown drift, local midnight normalization)
-    - [x] App Routing (Login → Role Home)
-    - [x] Remove Legacy UI (Old reflections, Private messages)
-    - [x] Fix QuickReflection build error
-    - [x] Fix Login Logic (Local Auth w/ Password)
-    - [x] Add Student View Toggle for Guardians
-- [x] **Core Features**
-    - [x] Question Board UI (Photo upload stub)
-    - [x] Character Reflection UI (Integration in LessonDetail)
-    - [x] Firebase Interface Injection (DataStore pattern)
-- [x] **Date Display Unification**
-    - [x] Add `formatDaysRemaining` helper (期限切れ/今日/明日/あとN日)
-    - [x] Apply to Dashboard & SchoolList
-- [x] **Documentation**
-    - [x] Update PROJECT.md
-    - [x] Add .env.example
-    - [x] Create next PR roadmap
+### Phase 1: Foundation
+- [x] React 19 + TypeScript + Vite セットアップ
+- [x] Firebase Auth / Firestore / Storage 統合
+- [x] ロール別認証 (Admin/Tutor/Guardian/Student)
+- [x] HashRouter ルーティング
+- [x] PWA対応（オフライン、インストール）
 
----
+### Phase 2: Core Features
+- [x] 宿題管理システム（HomeworkPage統合）
+- [x] 質問ボード（写真アップロード対応）
+- [x] 授業録音・文字起こし
+- [x] 成績管理・推移グラフ
 
-## 🔜 Next PR Roadmap
+### Phase 3: AI Integration
+- [x] AIアシスタント（チャット + 写真質問統合）
+- [x] キャラクター選択（マナビー、はかせ、ともちゃん）
+- [x] Cloud Functions経由のGemini API呼び出し
 
-### PR #2: Firebase Auth Integration ✅
-- [x] Firebase project setup
-- [x] authContext.tsx (Firebase/Local認証抽象化)
-- [x] Email/password sign-in
-- [x] Session persistence (onAuthStateChanged)
+### Phase 4: Gamification
+- [x] XPシステム（リアルタイム同期）
+- [x] レベルアップ通知
+- [x] バッジシステム
+- [x] アニメーション演出
 
-### PR #3: Firestore Data Layer ✅
-- [x] homeworkService.ts実装
-- [x] Real-time listeners (準備完了)
-- [x] Offline persistence
+### Phase 5: Admin Enhancements
+- [x] ユーザー管理
+- [x] APIコスト管理ダッシュボード
+- [x] アプリ内レポート閲覧
+- [x] 監査ログ
+- [x] ロール切り替えプレビュー
 
-### PR #4: Cloud Functions for AI ✅
-- [x] Move `geminiService` logic to Cloud Functions
-- [x] Secure API key handling
-- [x] Rate limiting per user
-
-### PR #5: Multi-Student Support ✅
-- [x] Guardian → multiple children selector (StudentSelector.tsx)
-- [x] Student-specific data isolation
-- [x] Dashboard per-child view
-
-### PR #6: Question Flow Complete ✅
-- [x] Photo upload to Firebase Storage
-- [x] Firestore triggers → AI analysis
-- [x] Tutor review queue (UI enhancement needed)
-- [x] Push notifications (FCM)
-
-### PR #7: Exam Score Management ✅
-- [x] Score input UI (ExamScoreManager.tsx)
-- [x] Subject averages display
-- [x] Trend analysis (前回比)
-
-### PR #8: Mobile UX Improvements ✅
-- [x] Responsive sidebar (drawer)
-- [x] Touch-friendly interactions
-- [x] Bottom navigation option
-
-### PR #9: PWA Support ✅
-- [x] Service worker (sw.js created)
-- [x] manifest.json configured
-- [x] Offline mode (background sync implemented)
-- [x] Install prompt (InstallPrompt.tsx created)
-
-### PR #10: Admin Dashboard ✅
-- [x] API usage monitoring
-- [x] Quick action buttons
-- [x] System health indicators
-- [x] User management links
+### Phase 6: Production
+- [x] デモアカウント削除
+- [x] モックデータ削除
+- [x] エラーログサービス
+- [x] フィードバック収集機能
 
 ---
 
-## ⏸️ Deferred (Post-MVP)
-- [ ] OpenAI API Fallback option
-- [ ] Printing Layout (Mistake Notebook)
-- [ ] Video lesson recording
-- [ ] AI tutoring chat
+## 🔜 今後の予定
+
+### Near Term
+- [ ] E2Eテスト拡充
+- [ ] パフォーマンス最適化
+- [ ] アクセシビリティ改善
+- [ ] 多言語対応（英語）
+
+### Future
+- [ ] OpenAI API フォールバック
+- [ ] 印刷レイアウト（間違いノート）
+- [ ] ビデオレッスン録画
+- [ ] リアルタイムコラボレーション
+
+---
+
+## 📊 技術スタック
+
+| カテゴリ | 技術 |
+|----------|------|
+| フロントエンド | React 19, TypeScript, Vite |
+| スタイリング | Tailwind CSS (CDN) |
+| バックエンド | Firebase (Auth, Firestore, Storage, Functions) |
+| AI | Google Gemini 2.5 Flash |
+| ホスティング | Firebase Hosting |
+| CI/CD | GitHub Actions |
+
+---
+
+## 🔗 関連ドキュメント
+
+- [README.md](./README.md) - プロジェクト概要
+- [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) - Firebase設定
+- [docs/GITHUB_SETUP.md](./docs/GITHUB_SETUP.md) - GitHub設定

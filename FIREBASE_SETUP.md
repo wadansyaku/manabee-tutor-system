@@ -164,15 +164,13 @@ firebase emulators:start
 
 ---
 
-## 🔑 テストログイン情報
+## 🔑 認証について
 
-ローカル開発環境での初期ログイン情報:
+### ローカル開発環境
+ローカルモード（`VITE_APP_MODE=local`）では、簡易ログインでテスト可能です。
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@manabee.com | 1234 |
-| Tutor | sensei@manabee.com | 1234 |
-| Guardian | mom@manabee.com | 1234 |
-| Student | taro@manabee.com | 1234 |
+### 本番環境
+Firebase Authentication を使用。新規ユーザーは登録フォームから作成するか、管理者がFirebase Consoleで作成してください。
 
-> **Note**: 本番環境では Firebase Authentication を使用するため、別途ユーザー登録が必要です。
+> **Note**: セキュリティ強化のため、デモアカウントは削除されました。
+
