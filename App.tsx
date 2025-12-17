@@ -17,9 +17,18 @@ import { UsageMonitor } from './components/admin/UsageMonitor';
 import { DatabaseSeeder } from './components/admin/DatabaseSeeder';
 // Tutor Components
 import { ReviewQueue } from './components/tutor/ReviewQueue';
+import { LessonRecorder } from './components/tutor/LessonRecorder';
+// Student Components
+import { HomeworkCalendar } from './components/student/HomeworkCalendar';
+import { GoalTracker } from './components/student/GoalTracker';
+import { CharacterChat } from './components/student/CharacterChat';
+// Common Components
+import { ReportExport } from './components/common/ReportExport';
+import { NotificationCenter } from './components/common/NotificationCenter';
 // Extracted Components
 import { LoginScreen } from './components/LoginScreen';
 import { AppLayout } from './components/AppLayout';
+
 
 // --- Main App ---
 export default function App() {
@@ -292,6 +301,32 @@ export default function App() {
                 studentId={selectedStudentId}
               />
             </>
+          } />
+
+          {/* Student Feature Routes */}
+          <Route path="/calendar" element={
+            <HomeworkCalendar currentUser={effectiveUser} />
+          } />
+          <Route path="/goals" element={
+            <GoalTracker currentUser={effectiveUser} />
+          } />
+          <Route path="/chat" element={
+            <CharacterChat currentUser={effectiveUser} />
+          } />
+
+          {/* Tutor Feature Routes */}
+          <Route path="/recording" element={
+            effectiveUser.role === UserRole.TUTOR || effectiveUser.role === UserRole.ADMIN ? (
+              <LessonRecorder currentUser={effectiveUser} studentId={selectedStudentId} />
+            ) : <Navigate to="/" replace />
+          } />
+
+          {/* Common Feature Routes */}
+          <Route path="/reports" element={
+            <ReportExport currentUser={effectiveUser} studentId={selectedStudentId} />
+          } />
+          <Route path="/notifications" element={
+            <NotificationCenter currentUser={effectiveUser} />
           } />
 
           {/* Admin Routes */}

@@ -34,19 +34,25 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         if (currentUser.role === UserRole.STUDENT) {
             return [
                 ...common,
-                { name: '写真で質問', path: '/questions' },
-                { name: '宿題リスト', path: '/homework' },
+                { name: '📅 宿題カレンダー', path: '/calendar' },
+                { name: '🎯 目標トラッカー', path: '/goals' },
+                { name: '🤖 AIチャット', path: '/chat' },
+                { name: '📝 写真で質問', path: '/questions' },
+                { name: '📚 宿題リスト', path: '/homework' },
+                { name: '🔔 通知', path: '/notifications' },
             ];
         }
 
         if (currentUser.role === UserRole.TUTOR) {
             return [
                 ...common,
-                { name: '質問レビュー', path: '/questions' },
-                { name: '宿題管理', path: '/homework' },
-                { name: '成績管理', path: '/scores' },
-                { name: '授業記録', path: '/lessons/l1' },
-                { name: '受験校管理', path: '/schools' },
+                { name: '📋 質問レビュー', path: '/questions' },
+                { name: '📚 宿題管理', path: '/homework' },
+                { name: '📊 成績管理', path: '/scores' },
+                { name: '🎙️ 授業録音', path: '/recording' },
+                { name: '📝 授業記録', path: '/lessons/l1' },
+                { name: '📥 レポート出力', path: '/reports' },
+                { name: '🏫 受験校管理', path: '/schools' },
             ];
         }
 
@@ -54,20 +60,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         if (currentUser.role === UserRole.ADMIN) {
             return [
                 ...common,
-                { name: 'ユーザー管理', path: '/admin/users' },
-                { name: 'システム設定', path: '/admin/settings' },
-                { name: '使用状況', path: '/admin/usage' },
-                { name: 'DB初期化', path: '/admin/database' },
+                { name: '👥 ユーザー管理', path: '/admin/users' },
+                { name: '⚙️ システム設定', path: '/admin/settings' },
+                { name: '📈 使用状況', path: '/admin/usage' },
+                { name: '🗄️ DB初期化', path: '/admin/database' },
+                { name: '📥 レポート出力', path: '/reports' },
             ];
         }
 
         // Guardian only
         return [
             ...common,
-            { name: '宿題', path: '/homework' },
-            { name: '成績', path: '/scores' },
-            { name: '学習状況', path: '/lessons/l1' },
-            { name: '受験校', path: '/schools' },
+            { name: '📅 宿題カレンダー', path: '/calendar' },
+            { name: '🎯 目標', path: '/goals' },
+            { name: '📚 宿題', path: '/homework' },
+            { name: '📊 成績', path: '/scores' },
+            { name: '📝 学習状況', path: '/lessons/l1' },
+            { name: '📥 レポート出力', path: '/reports' },
+            { name: '🔔 通知', path: '/notifications' },
         ];
     };
 
