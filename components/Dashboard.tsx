@@ -40,20 +40,35 @@ const StudentDashboard: React.FC<DashboardProps> = ({ currentUser, schools, less
     const completionRate = totalHomework > 0 ? Math.round((completedHomework.length / totalHomework) * 100) : 0;
     const nextExam = upcomingEvents.find(e => e.type === 'exam');
 
-    // Gamification stats - initial values (will be loaded from user profile in production)
-    // TODO: Replace with actual user data from Firestore
-    const stats = {
-        level: 1,
-        xp: 0,
-        xpToNext: 100,
-        streak: 0,
-        todayTasks: homeworkItems.length,
-        badges: [] as string[],
-        dailyBonus: 0,
-        rank: '初心者'
+    // Gamification stats - loaded from user profile
+    const userLevel = currentUser.level || 1;
+    const userXp = currentUser.xp || 0;
+    const xpPerLevel = (level: number) => Math.floor(100 * Math.pow(1.2, level - 1));
+    const xpToNext = xpPerLevel(userLevel);
+
+    // Calculate rank based on level
+    const getRank = (level: number): string => {
+        if (level >= 50) return 'マスター';
+        if (level >= 30) return 'ダイヤモンド';
+        if (level >= 20) return 'プラチナ';
+        if (level >= 15) return '金';
+        if (level >= 10) return '銀';
+        if (level >= 5) return '銅';
+        return '初心者';
     };
 
-    const xpProgress = (stats.xp / stats.xpToNext) * 100;
+    const stats = {
+        level: userLevel,
+        xp: userXp,
+        xpToNext: xpToNext,
+        streak: currentUser.streak || 0,
+        todayTasks: homeworkItems.length,
+        badges: currentUser.badges || [],
+        dailyBonus: (currentUser.streak || 0) >= 3 ? 25 : (currentUser.streak || 0) >= 7 ? 50 : 0,
+        rank: getRank(userLevel)
+    };
+
+    const xpProgress = stats.xpToNext > 0 ? (stats.xp / stats.xpToNext) * 100 : 0;
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">

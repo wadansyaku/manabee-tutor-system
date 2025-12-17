@@ -13,6 +13,22 @@ export interface User {
   role: UserRole;
   email: string;
   isInitialPassword?: boolean; // Forcing password change
+
+  // Gamification (for students)
+  xp?: number;
+  level?: number;
+  streak?: number;
+  badges?: string[];
+  lastActiveAt?: string; // ISO Date for streak calculation
+
+  // Relationships
+  linkedStudentIds?: string[];  // For guardians: their children
+  tutorId?: string;             // For students: assigned tutor
+  guardianIds?: string[];       // For students: their guardians
+
+  // Timestamps
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // --- AI Job & Question Types ---
@@ -24,16 +40,16 @@ export interface QuestionJob {
   studentId: string;
   subject: string;
   createdAt: string; // ISO Date
-  
+
   // Images (Base64 or URL)
   questionImageUrl: string;
-  answerImageUrl?: string; 
-  
+  answerImageUrl?: string;
+
   // AI & Review
   status: JobStatus;
   aiExplanation?: string;
   tutorComment?: string;
-  
+
   // Interaction
   studentUnderstanding?: 'good' | 'bad'; // "わかった" check
 }
@@ -118,21 +134,21 @@ export interface Lesson {
   durationMinutes: number;
   status: 'scheduled' | 'completed' | 'cancelled';
   hourlyRate: number;
-  
+
   // Audio & Transcript
   audioUrl?: string;
   transcript: string;
-  
+
   // AI Generated Content
   aiSummary?: SummaryJson;
   aiHomework?: HomeworkJson;
   aiQuiz?: QuizJson;
-  
+
   // New Reflection
   characterReflection?: CharacterReflection;
 
   // Legacy (Removed for P0, keep optional for compatibility if needed)
-  reflections?: any; 
+  reflections?: any;
   quickReflection?: any;
   privateStudentMessage?: any;
   tutorPublicReply?: any;

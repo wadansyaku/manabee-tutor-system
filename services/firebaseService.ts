@@ -266,6 +266,170 @@ export const firestoreOperations = {
         const q = fs.query(fs.collection(db, 'audit_logs'), fs.orderBy('at', 'desc'));
         const snapshot = await fs.getDocs(q);
         return snapshot.docs.slice(0, limit).map(d => d.data() as AuditLog);
+    },
+
+    // Get linked students for a guardian or tutor
+    async getLinkedStudents(userId: string, userRole: string): Promise<User[]> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+
+        // Get the current user to find their linked students
+        const userDoc = await fs.getDoc(fs.doc(db, 'users', userId));
+        if (!userDoc.exists()) return [];
+
+        const userData = userDoc.data() as User;
+
+        if (userRole === 'GUARDIAN' && userData.linkedStudentIds?.length) {
+            // Get students linked to this guardian
+            const students: User[] = [];
+            for (const studentId of userData.linkedStudentIds) {
+                const studentDoc = await fs.getDoc(fs.doc(db, 'users', studentId));
+                if (studentDoc.exists()) {
+                    students.push(studentDoc.data() as User);
+                }
+            }
+            return students;
+        } else if (userRole === 'TUTOR') {
+            // Get all students assigned to this tutor
+            const q = fs.query(
+                fs.collection(db, 'users'),
+                fs.where('role', '==', 'STUDENT'),
+                fs.where('tutorId', '==', userId)
+            );
+            const snapshot = await fs.getDocs(q);
+            return snapshot.docs.map(d => d.data() as User);
+        }
+
+        return [];
+    },
+
+    // Update user's last activity and calculate streak
+    async updateUserActivity(userId: string): Promise<{ streak: number; xp: number; level: number }> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+
+        const userDoc = await fs.getDoc(fs.doc(db, 'users', userId));
+        if (!userDoc.exists()) return { streak: 0, xp: 0, level: 1 };
+
+        const userData = userDoc.data() as User;
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+
+        let newStreak = userData.streak || 0;
+        const currentXp = userData.xp || 0;
+        const currentLevel = userData.level || 1;
+
+        if (userData.lastActiveAt) {
+            const lastActive = new Date(userData.lastActiveAt);
+            const lastActiveDate = lastActive.toISOString().split('T')[0];
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+            if (lastActiveDate === today) {
+                // Already active today, no change
+            } else if (lastActiveDate === yesterdayStr) {
+                // Continue streak
+                newStreak += 1;
+            } else {
+                // Streak broken
+                newStreak = 1;
+            }
+        } else {
+            // First activity
+            newStreak = 1;
+        }
+
+        await fs.updateDoc(fs.doc(db, 'users', userId), {
+            lastActiveAt: now.toISOString(),
+            streak: newStreak,
+            updatedAt: now.toISOString()
+        });
+
+        return { streak: newStreak, xp: currentXp, level: currentLevel };
+    },
+
+    // Add XP to user and calculate level
+    async addUserXp(userId: string, xpToAdd: number): Promise<{ xp: number; level: number; leveledUp: boolean }> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+
+        const userDoc = await fs.getDoc(fs.doc(db, 'users', userId));
+        if (!userDoc.exists()) return { xp: 0, level: 1, leveledUp: false };
+
+        const userData = userDoc.data() as User;
+        const currentXp = (userData.xp || 0) + xpToAdd;
+        const currentLevel = userData.level || 1;
+
+        // Level calculation: 100 XP per level, exponential growth
+        const xpPerLevel = (level: number) => Math.floor(100 * Math.pow(1.2, level - 1));
+        let newLevel = currentLevel;
+        let remainingXp = currentXp;
+
+        while (remainingXp >= xpPerLevel(newLevel)) {
+            remainingXp -= xpPerLevel(newLevel);
+            newLevel++;
+        }
+
+        const leveledUp = newLevel > currentLevel;
+
+        await fs.updateDoc(fs.doc(db, 'users', userId), {
+            xp: currentXp,
+            level: newLevel,
+            updatedAt: new Date().toISOString()
+        });
+
+        return { xp: currentXp, level: newLevel, leveledUp };
+    },
+
+    // Create a new student
+    async createStudent(studentData: Partial<User>, tutorId?: string, guardianId?: string): Promise<User | null> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+
+        const now = new Date().toISOString();
+        const newId = fs.doc(fs.collection(db, 'users')).id;
+
+        const newStudent: User = {
+            id: newId,
+            name: studentData.name || '',
+            email: studentData.email || '',
+            role: 'STUDENT' as any,
+            xp: 0,
+            level: 1,
+            streak: 0,
+            badges: [],
+            tutorId: tutorId,
+            guardianIds: guardianId ? [guardianId] : [],
+            createdAt: now,
+            updatedAt: now
+        };
+
+        await fs.setDoc(fs.doc(db, 'users', newId), newStudent);
+
+        // Link to guardian if provided
+        if (guardianId) {
+            const guardianDoc = await fs.getDoc(fs.doc(db, 'users', guardianId));
+            if (guardianDoc.exists()) {
+                const guardianData = guardianDoc.data() as User;
+                const linkedIds = guardianData.linkedStudentIds || [];
+                linkedIds.push(newId);
+                await fs.updateDoc(fs.doc(db, 'users', guardianId), {
+                    linkedStudentIds: linkedIds
+                });
+            }
+        }
+
+        return newStudent;
+    },
+
+    // Get all students (for admin)
+    async getAllStudents(): Promise<User[]> {
+        const { db } = await loadFirebaseModules();
+        const fs = await import('firebase/firestore');
+        const q = fs.query(fs.collection(db, 'users'), fs.where('role', '==', 'STUDENT'));
+        const snapshot = await fs.getDocs(q);
+        return snapshot.docs.map(d => d.data() as User);
     }
 };
 
@@ -273,6 +437,8 @@ export default {
     isFirebaseConfigured,
     firebaseLogin,
     firebaseLogout,
+    firebaseRegister,
+    firebaseResetPassword,
     onAuthChange,
     getUser,
     updateUser,
@@ -284,5 +450,10 @@ export default {
     getQuestions: firestoreOperations.getQuestions,
     saveQuestion: firestoreOperations.saveQuestion,
     addAuditLog: firestoreOperations.addAuditLog,
-    getAuditLogs: firestoreOperations.getAuditLogs
+    getAuditLogs: firestoreOperations.getAuditLogs,
+    getLinkedStudents: firestoreOperations.getLinkedStudents,
+    updateUserActivity: firestoreOperations.updateUserActivity,
+    addUserXp: firestoreOperations.addUserXp,
+    createStudent: firestoreOperations.createStudent,
+    getAllStudents: firestoreOperations.getAllStudents
 };
