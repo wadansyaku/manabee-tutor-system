@@ -16,6 +16,11 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['ADMIN', 'TUTOR'];
     }
     
+    function isGuardian() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'GUARDIAN';
+    }
+    
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -24,35 +29,28 @@ service cloud.firestore {
     function isGuardianOf(studentId) {
       return isSignedIn() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedStudents.hasAny([studentId]);
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('linkedStudentIds', []).hasAny([studentId]);
     }
     
-    // Check if user can access student data (owner, guardian, or tutor/admin)
-    function canAccessStudentData(studentId) {
-      return isOwner(studentId) || isGuardianOf(studentId) || isTutor();
+    // Check if tutor is assigned to student
+    function isTutorOf(studentId) {
+      return isTutor() && (
+        isAdmin() ||
+        get(/databases/$(database)/documents/users/$(studentId)).data.get('tutorId', '') == request.auth.uid
+      );
     }
     
     // Users collection
     match /users/{userId} {
-      // Admins can read/write all users
-      // Users can read their own profile
-      allow read: if isOwner(userId) || isAdmin();
-      // Users can create their own profile (initial setup)
-      // Admins can create any user
+      allow read: if isSignedIn();
       allow create: if isOwner(userId) || isAdmin();
-      // Users can update own profile (but not role), Admins can update all
-      allow update: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin() || isTutor();
       allow delete: if isAdmin();
     }
     
-    // Schools collection - student-specific data
+    // Schools collection
     match /schools/{schoolId} {
-      // Read: owner, their guardian, or tutors/admin
-      allow read: if isSignedIn() && 
-        (resource.data.studentId == request.auth.uid || 
-         isTutor() ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('linkedStudents', []).hasAny([resource.data.studentId])));
+      allow read: if isSignedIn();
       allow create, update: if isTutor();
       allow delete: if isAdmin();
     }
@@ -64,21 +62,86 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Questions collection - student-specific data
+    // Questions collection
     match /questions/{questionId} {
-      // Read: student owner, their guardian, or tutors/admin
-      allow read: if isSignedIn() && 
-        (resource.data.studentId == request.auth.uid || 
-         isTutor() ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('linkedStudents', []).hasAny([resource.data.studentId])));
-      // Create: any signed-in user (students create their own questions)
-      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
-      allow update: if isTutor();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isTutor() || isOwner(resource.data.studentId);
       allow delete: if isAdmin();
     }
     
-    // Audit logs - write-only for users, read for admins
+    // ===== NEW COLLECTIONS =====
+    
+    // Attendance (勤怠)
+    match /attendance/{attendanceId} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.tutorId == request.auth.uid ||
+        resource.data.studentId == request.auth.uid ||
+        isGuardianOf(resource.data.studentId)
+      );
+      allow create: if isTutor();
+      allow update: if isTutor() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Invoices (請求)
+    match /invoices/{invoiceId} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.tutorId == request.auth.uid ||
+        resource.data.guardianId == request.auth.uid ||
+        isGuardianOf(resource.data.studentId)
+      );
+      allow create: if isTutor() || isAdmin();
+      allow update: if isTutor() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Messages
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && (
+        resource.data.fromUserId == request.auth.uid ||
+        resource.data.toUserId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn();
+      allow update: if resource.data.toUserId == request.auth.uid || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Study Logs (学習ログ)
+    match /study_logs/{logId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        isTutor() ||
+        isGuardianOf(resource.data.studentId)
+      );
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isOwner(resource.data.studentId) || isTutor();
+      allow delete: if isAdmin();
+    }
+    
+    // Goals (目標)
+    match /goals/{goalId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        isTutor() ||
+        isGuardianOf(resource.data.studentId)
+      );
+      allow create: if isSignedIn();
+      allow update: if isOwner(resource.data.studentId) || isTutor();
+      allow delete: if isOwner(resource.data.studentId) || isAdmin();
+    }
+    
+    // Analytics Events
+    match /analytics_events/{eventId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+      allow update, delete: if false; // Immutable
+    }
+    
+    // Audit logs
     match /audit_logs/{logId} {
       allow create: if isSignedIn();
       allow read: if isAdmin();
@@ -87,20 +150,19 @@ service cloud.firestore {
     
     // Rate limits - Cloud Functions only
     match /rate_limits/{limitId} {
-      allow read, write: if false; // Cloud Functions use admin SDK
+      allow read, write: if false;
     }
     
-    // API usage logs - Cloud Functions only
+    // API usage logs
     match /api_usage_logs/{logId} {
       allow read: if isAdmin();
-      allow write: if false; // Cloud Functions use admin SDK
+      allow write: if false;
     }
     
-    // System config - Signed in users can read, write for initial setup
+    // System config
     match /system_config/{configId} {
       allow read: if isSignedIn();
-      // Allow write if doc doesn't exist (initial setup) or if admin
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
     
     // Exam scores

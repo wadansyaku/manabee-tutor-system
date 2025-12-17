@@ -202,3 +202,156 @@ export interface AuditLog {
   action: string;
   summary: string;
 }
+
+// ===== NEW TYPES FOR PRODUCTION =====
+
+// Attendance (勤怠管理)
+export type AttendanceStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+
+export interface Attendance {
+  id: string;
+  lessonId: string;
+  tutorId: string;
+  studentId: string;
+  date: string; // ISO Date
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  durationMinutes: number;
+  status: AttendanceStatus;
+  hourlyRate: number;
+  totalAmount: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Invoice (請求)
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
+
+export interface InvoiceItem {
+  attendanceId: string;
+  date: string;
+  durationMinutes: number;
+  amount: number;
+  description: string;
+}
+
+export interface Invoice {
+  id: string;
+  tutorId: string;
+  guardianId: string;
+  studentId: string;
+  month: string; // YYYY-MM
+  items: InvoiceItem[];
+  totalHours: number;
+  totalAmount: number;
+  status: InvoiceStatus;
+  sentAt?: string;
+  paidAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Message (メッセージ)
+export interface Message {
+  id: string;
+  fromUserId: string;
+  fromUserName: string;
+  toUserId: string;
+  toUserName: string;
+  studentId?: string; // Related student (optional)
+  subject?: string;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+  readAt?: string;
+}
+
+// Study Log (学習ログ)
+export type StudyType = 'homework' | 'review' | 'self_study' | 'exam_prep' | 'lesson';
+
+export interface StudyLog {
+  id: string;
+  studentId: string;
+  date: string; // YYYY-MM-DD
+  subject: string;
+  durationMinutes: number;
+  type: StudyType;
+  notes?: string;
+  lessonId?: string;
+  homeworkId?: string;
+  createdAt: string;
+}
+
+// Goal (目標)
+export type GoalType = 'exam' | 'score' | 'habit' | 'study_time';
+export type GoalStatus = 'active' | 'completed' | 'failed' | 'paused';
+
+export interface Goal {
+  id: string;
+  studentId: string;
+  title: string;
+  description?: string;
+  targetDate: string;
+  type: GoalType;
+  target: number; // Target value
+  current: number; // Current progress
+  unit: string; // e.g., '点', '時間', '日'
+  status: GoalStatus;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+// Analytics Event (分析イベント)
+export type AnalyticsEventType =
+  | 'page_view'
+  | 'lesson_start'
+  | 'lesson_end'
+  | 'homework_complete'
+  | 'question_submit'
+  | 'login'
+  | 'logout'
+  | 'feature_use';
+
+export interface AnalyticsEvent {
+  id: string;
+  userId: string;
+  userRole: UserRole;
+  eventType: AnalyticsEventType;
+  eventData?: Record<string, any>;
+  pageUrl?: string;
+  sessionId: string;
+  createdAt: string;
+  userAgent?: string;
+}
+
+// Dashboard Stats (for analytics)
+export interface DashboardStats {
+  totalStudents: number;
+  totalTutors: number;
+  totalGuardians: number;
+  totalLessons: number;
+  totalLessonHours: number;
+  activeStudentsThisWeek: number;
+  questionsThisWeek: number;
+  homeworkCompletionRate: number;
+  averageStudyMinutesPerDay: number;
+}
+
+// Monthly Report (for tutor/guardian)
+export interface MonthlyReport {
+  month: string;
+  studentId: string;
+  studentName: string;
+  totalLessons: number;
+  totalHours: number;
+  totalAmount: number;
+  homeworkAssigned: number;
+  homeworkCompleted: number;
+  questionsAsked: number;
+  questionsResolved: number;
+  studyLogMinutes: number;
+  highlights: string[];
+  areasToImprove: string[];
+}
