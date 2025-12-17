@@ -54,6 +54,39 @@ const SEED_USERS = [
     }
 ];
 
+// Demo users for Firebase Auth (these need Auth accounts)
+const DEMO_USERS = [
+    {
+        email: 'student@demo.manabee.jp',
+        password: 'demo1234',
+        name: 'デモ生徒',
+        role: 'STUDENT' as UserRole,
+        xp: 250,
+        level: 3,
+        streak: 5,
+        badges: ['first_login', 'homework_streak'],
+    },
+    {
+        email: 'parent@demo.manabee.jp',
+        password: 'demo1234',
+        name: 'デモ保護者',
+        role: 'GUARDIAN' as UserRole,
+        linkedStudentIds: [],
+    },
+    {
+        email: 'tutor@demo.manabee.jp',
+        password: 'demo1234',
+        name: 'デモ講師',
+        role: 'TUTOR' as UserRole,
+    },
+    {
+        email: 'admin@demo.manabee.jp',
+        password: 'demo1234',
+        name: 'デモ管理者',
+        role: 'ADMIN' as UserRole,
+    },
+];
+
 // Check if Firebase mode is enabled without importing the full service
 const isFirebaseMode = () => {
     try {
@@ -137,6 +170,74 @@ export const DatabaseSeeder: React.FC<DatabaseSeederProps> = ({ currentUser, onA
 
         } catch (error: any) {
             console.error('Seed error:', error);
+            setStatus('error');
+            setMessage(`エラー: ${error.message}`);
+            addLog(`❌ エラー: ${error.message}`);
+        }
+    };
+
+    // Create demo users with Firebase Auth
+    const handleSeedDemoUsers = async () => {
+        if (!isFirebaseMode()) {
+            setStatus('error');
+            setMessage('Firebase is not configured. Please set up Firebase first.');
+            return;
+        }
+
+        if (!confirm('デモユーザーをFirebase Authenticationに作成しますか？\n既存の同じメールのユーザーがいる場合はスキップされます。')) {
+            return;
+        }
+
+        setStatus('seeding');
+        setMessage('');
+        setLogs([]);
+
+        try {
+            const { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } = await import('firebase/auth');
+            const { getFirestore, doc, setDoc } = await import('firebase/firestore');
+            const { getApp } = await import('firebase/app');
+
+            const auth = getAuth(getApp());
+            const db = getFirestore(getApp());
+
+            addLog('Firebase接続成功');
+            let createdCount = 0;
+            let skippedCount = 0;
+
+            for (const demoUser of DEMO_USERS) {
+                addLog(`処理中: ${demoUser.email}...`);
+                try {
+                    // Try to create the user
+                    const userCredential = await createUserWithEmailAndPassword(auth, demoUser.email, demoUser.password);
+                    const uid = userCredential.user.uid;
+
+                    // Create Firestore user document
+                    const { password, ...userData } = demoUser;
+                    await setDoc(doc(db, 'users', uid), {
+                        id: uid,
+                        ...userData,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                    });
+
+                    addLog(`✓ 作成: ${demoUser.name} (${demoUser.role})`);
+                    createdCount++;
+                } catch (authError: any) {
+                    if (authError.code === 'auth/email-already-in-use') {
+                        addLog(`⏭ スキップ: ${demoUser.email} (既存ユーザー)`);
+                        skippedCount++;
+                    } else {
+                        addLog(`❌ エラー: ${demoUser.email} - ${authError.message}`);
+                    }
+                }
+            }
+
+            setStatus('success');
+            setMessage(`デモユーザー作成完了！ 作成: ${createdCount}, スキップ: ${skippedCount}`);
+            onAudit('demo_users_seeded', `デモユーザーを作成 (${createdCount}ユーザー)`);
+
+        } catch (error: any) {
+            console.error('Demo seed error:', error);
             setStatus('error');
             setMessage(`エラー: ${error.message}`);
             addLog(`❌ エラー: ${error.message}`);
@@ -239,12 +340,50 @@ export const DatabaseSeeder: React.FC<DatabaseSeederProps> = ({ currentUser, onA
                 </div>
             )}
 
+            {/* Demo Users Preview */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">👤 デモユーザー (Firebase Auth)</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                    これらのユーザーはFirebase Authに作成され、ログイン画面からワンクリックでログインできます。
+                </p>
+                <div className="space-y-3">
+                    {DEMO_USERS.map(user => (
+                        <div key={user.email} className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl">
+                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-lg text-white font-bold">
+                                {user.name[0]}
+                            </div>
+                            <div className="flex-1">
+                                <p className="font-semibold text-gray-900">{user.name}</p>
+                                <p className="text-xs text-gray-500">{user.email}</p>
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' :
+                                user.role === 'TUTOR' ? 'bg-blue-100 text-blue-700' :
+                                    user.role === 'GUARDIAN' ? 'bg-pink-100 text-pink-700' :
+                                        'bg-green-100 text-green-700'
+                                }`}>
+                                {user.role}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             {/* Actions */}
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
+                <button
+                    onClick={handleSeedDemoUsers}
+                    disabled={status === 'seeding'}
+                    className={`w-full py-4 rounded-xl font-semibold text-lg transition ${status === 'seeding'
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg'
+                        }`}
+                >
+                    {status === 'seeding' ? '処理中...' : '👤 デモユーザーを作成 (Firebase Auth)'}
+                </button>
                 <button
                     onClick={handleSeed}
                     disabled={status === 'seeding'}
-                    className={`flex-1 py-4 rounded-xl font-semibold text-lg transition ${status === 'seeding'
+                    className={`w-full py-4 rounded-xl font-semibold text-lg transition ${status === 'seeding'
                         ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
                         }`}
