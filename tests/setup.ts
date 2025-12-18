@@ -27,17 +27,33 @@ vi.mock('firebase/auth', () => ({
     onAuthStateChanged: vi.fn()
 }));
 
-vi.mock('firebase/firestore', () => ({
-    getFirestore: vi.fn(),
-    collection: vi.fn(),
-    doc: vi.fn(),
-    getDoc: vi.fn(),
-    getDocs: vi.fn(),
-    setDoc: vi.fn(),
-    updateDoc: vi.fn(),
-    deleteDoc: vi.fn(),
-    onSnapshot: vi.fn()
-}));
+vi.mock('firebase/firestore', () => {
+    const mockDocs: any[] = [];
+    return {
+        getFirestore: vi.fn(),
+        collection: vi.fn(),
+        doc: vi.fn(),
+        getDoc: vi.fn(async () => ({ exists: () => false, data: () => ({}) })),
+        getDocs: vi.fn(async () => ({ docs: mockDocs.map(d => ({ id: d.id || '1', data: () => d })) })),
+        addDoc: vi.fn(async () => ({ id: 'mock-doc' })),
+        setDoc: vi.fn(),
+        updateDoc: vi.fn(),
+        deleteDoc: vi.fn(),
+        onSnapshot: vi.fn((_ref, onNext) => {
+            onNext({ docs: [] });
+            return () => { };
+        }),
+        query: vi.fn(() => ({})),
+        where: vi.fn(() => ({})),
+        orderBy: vi.fn(() => ({})),
+        limit: vi.fn(() => ({})),
+        writeBatch: vi.fn(() => ({ update: vi.fn(), commit: vi.fn() })),
+        Timestamp: {
+            now: vi.fn(() => ({ toDate: () => new Date() })),
+            fromDate: vi.fn((d: Date) => ({ toDate: () => d })),
+        },
+    };
+});
 
 vi.mock('firebase/storage', () => ({
     getStorage: vi.fn(),

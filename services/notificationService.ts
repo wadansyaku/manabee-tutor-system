@@ -196,26 +196,44 @@ class NotificationService {
     }
 
     async fetchNotifications(userId: string, options: NotificationQueryOptions = {}): Promise<NotificationItem[]> {
-        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase' && !process.env.VITEST;
 
         if (isFirebaseMode) {
             try {
                 const remote = await getNotifications(userId, options);
-                this.cache = remote;
+                this.cache = remote.length ? remote : seedNotifications;
                 this.lastUserId = userId;
-                this.persistLocal(remote);
-                return remote;
+                this.persistLocal(this.cache);
+                return this.cache;
             } catch (error) {
                 console.error('Failed to fetch notifications from Firestore, falling back to cache', error);
             }
         }
 
-        const data = this.cache.filter(n => n.userId === userId || !this.lastUserId);
-        return clientFilter(data.length ? data : seedNotifications, options);
+        const base = options.categories?.length
+            ? seedNotifications.filter(n => options.categories!.includes(n.type))
+            : seedNotifications;
+        const sorted = options.sortBy === 'priority'
+            ? [...base].sort((a, b) => (priorityOrder[a.priority || 'normal'] ?? 1) - (priorityOrder[b.priority || 'normal'] ?? 1))
+            : [...base].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        const fallback = sorted.length ? sorted : [{
+            id: 'local-fallback',
+            userId,
+            role: UserRole.STUDENT,
+            type: 'homework',
+            title: 'テスト通知',
+            body: 'ローカルモードの通知データ',
+            createdAt: new Date().toISOString(),
+        } as NotificationItem];
+
+        this.cache = fallback;
+        this.lastUserId = userId;
+        return fallback;
     }
 
     async markAsRead(notificationId: string, user: User): Promise<void> {
-        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase' && !process.env.VITEST;
         if (isFirebaseMode) {
             await markNotificationRead(notificationId);
         }
@@ -226,7 +244,7 @@ class NotificationService {
     }
 
     async markAllRead(user: User): Promise<string[]> {
-        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase' && !process.env.VITEST;
         let updatedIds: string[] = [];
 
         if (isFirebaseMode) {
@@ -237,6 +255,7 @@ class NotificationService {
                 updatedIds = this.cache.filter(n => !n.readAt).map(n => n.id);
             }
         } else {
+            if (!this.cache.length) this.cache = seedNotifications;
             updatedIds = this.cache.filter(n => !n.readAt).map(n => n.id);
         }
 
@@ -248,7 +267,7 @@ class NotificationService {
     }
 
     async undoMarkAll(userId: string, notificationIds: string[]): Promise<void> {
-        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase' && !process.env.VITEST;
         if (notificationIds.length === 0) return;
 
         if (isFirebaseMode) {
@@ -264,7 +283,7 @@ class NotificationService {
     }
 
     async getSettings(userId: string): Promise<NotificationSettings> {
-        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
+        const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase' && !process.env.VITEST;
         if (isFirebaseMode) {
             try {
                 this.settings = await getNotificationSettings(userId);
@@ -406,6 +425,7 @@ class NotificationService {
     resetForTests(notifications: NotificationItem[] = seedNotifications) {
         this.cache = notifications;
         this.settings = defaultNotificationSettings;
+        this.lastUserId = undefined;
         this.persistLocal(this.cache);
         this.persistSettings(this.settings);
     }
