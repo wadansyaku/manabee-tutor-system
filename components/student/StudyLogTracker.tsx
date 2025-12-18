@@ -24,17 +24,11 @@ export const StudyLogTracker: React.FC<StudyLogTrackerProps> = ({ currentUser })
         notes: ''
     });
 
-    // Demo data
+    // Load study logs from storage or Firestore (no mock data)
     useEffect(() => {
-        const today = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-        setLogs([
-            { id: '1', studentId: currentUser.id, date: today, subject: '算数', durationMinutes: 45, type: 'homework', createdAt: new Date().toISOString() },
-            { id: '2', studentId: currentUser.id, date: today, subject: '国語', durationMinutes: 30, type: 'review', createdAt: new Date().toISOString() },
-            { id: '3', studentId: currentUser.id, date: yesterday, subject: '理科', durationMinutes: 60, type: 'self_study', createdAt: new Date().toISOString() },
-            { id: '4', studentId: currentUser.id, date: yesterday, subject: '算数', durationMinutes: 90, type: 'lesson', createdAt: new Date().toISOString() }
-        ]);
+        // In production, load from Firestore
+        // For now, start with empty array - user adds their own logs
+        setLogs([]);
     }, [currentUser.id]);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -112,7 +106,8 @@ export const StudyLogTracker: React.FC<StudyLogTrackerProps> = ({ currentUser })
                 <div className="space-y-3">
                     {(Object.keys(studyTypes) as StudyType[]).map(type => {
                         const minutes = timeByType[type] || 0;
-                        const maxMinutes = Math.max(...Object.values(timeByType), 1);
+                        const values = Object.values(timeByType) as number[];
+                        const maxMinutes = Math.max(...values, 1);
                         const percentage = (minutes / maxMinutes) * 100;
                         const info = studyTypes[type];
 

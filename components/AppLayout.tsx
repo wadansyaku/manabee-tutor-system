@@ -39,7 +39,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 ...common,
                 { name: '📅 学習ダッシュボード', path: '/' },
                 { name: '📚 宿題・タスク', path: '/homework' },
-                { name: '🤖 AI先生', path: '/chat' },
+                { name: '🤖 AI先生', path: '/ai-assistant' },
                 { name: '🎯 目標', path: '/goals' },
                 { name: '🔔 通知', path: '/notifications' },
             ];

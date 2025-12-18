@@ -3,7 +3,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { UserRole } from '../../types';
-import { getTheme } from '../../theme';
 
 interface BreadcrumbProps {
     role: UserRole;
@@ -22,7 +21,7 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
     '/homework': { label: '宿題', parent: '/' },
     '/calendar': { label: 'カレンダー', parent: '/' },
     '/goals': { label: '目標', parent: '/' },
-    '/chat': { label: 'AIチャット', parent: '/' },
+    '/ai-assistant': { label: 'AI先生', parent: '/' },
     '/lessons': { label: '授業', parent: '/' },
     '/lessons/l1': { label: '授業詳細', parent: '/lessons' },
     '/schools': { label: '受験校', parent: '/' },
@@ -34,6 +33,14 @@ const routeConfig: Record<string, { label: string; parent?: string }> = {
     '/admin/settings': { label: 'システム設定', parent: '/' },
     '/admin/usage': { label: '使用状況', parent: '/' },
     '/admin/database': { label: 'データベース', parent: '/' },
+};
+
+// Simple inline role colors (replaces theme.ts dependency)
+const roleColors: Record<UserRole, { primary: string; bg: string }> = {
+    [UserRole.STUDENT]: { primary: '#059669', bg: '#d1fae5' },
+    [UserRole.GUARDIAN]: { primary: '#e11d48', bg: '#ffe4e6' },
+    [UserRole.TUTOR]: { primary: '#2563eb', bg: '#dbeafe' },
+    [UserRole.ADMIN]: { primary: '#4b5563', bg: '#f3f4f6' },
 };
 
 const getBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
@@ -63,7 +70,7 @@ const getBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
 
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ role, customTitle }) => {
     const location = useLocation();
-    const theme = getTheme(role);
+    const colors = roleColors[role] || roleColors[UserRole.STUDENT];
     const breadcrumbs = getBreadcrumbs(location.pathname);
 
     // Don't show breadcrumb on home
@@ -91,7 +98,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ role, customTitle }) => 
                         {isLast ? (
                             <span
                                 className="font-semibold px-2 py-1 rounded-lg"
-                                style={{ color: theme.primaryDark, backgroundColor: theme.primaryLight }}
+                                style={{ color: colors.primary, backgroundColor: colors.bg }}
                             >
                                 {item.label}
                             </span>

@@ -21,7 +21,6 @@ import { LessonRecorder } from './components/tutor/LessonRecorder';
 // Student Components
 import { HomeworkCalendar } from './components/student/HomeworkCalendar';
 import { GoalTracker } from './components/student/GoalTracker';
-import { CharacterChat } from './components/student/CharacterChat';
 import { HomeworkPage } from './components/student/HomeworkPage';
 import { AIAssistant } from './components/student/AIAssistant';
 // Common Components
@@ -343,9 +342,8 @@ export default function App() {
               </>
             } />
 
-            <Route path="/chat" element={
-              <CharacterChat currentUser={effectiveUser} />
-            } />
+            {/* /chat is now redirected to unified AI Assistant */}
+            <Route path="/chat" element={<Navigate to="/ai-assistant" replace />} />
 
             {/* Unified AI Assistant - combines Chat and Photo Questions */}
             <Route path="/ai-assistant" element={
