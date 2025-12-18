@@ -2,7 +2,7 @@
 // Custom React hooks for subscribing to Firestore data changes
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, Goal, Attendance, StudyLog } from '../types';
+import { User, Goal, Attendance, StudyLog, NotificationItem } from '../types';
 
 interface FirestoreHookState<T> {
     data: T[];
@@ -55,13 +55,19 @@ export function useFirestoreCollection<T>(
             const unsubscribe = onSnapshot(
                 q,
                 (snapshot) => {
-                    const docs = snapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data(),
-                        // Convert Firestore timestamps
-                        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt,
-                        updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || doc.data().updatedAt,
-                    })) as T[];
+                    const docs = snapshot.docs.map(doc => {
+                        const base = {
+                            id: doc.id,
+                            ...doc.data(),
+                        } as any;
+
+                        const data = doc.data() as any;
+                        if (data.createdAt?.toDate) base.createdAt = data.createdAt.toDate().toISOString();
+                        if (data.updatedAt?.toDate) base.updatedAt = data.updatedAt.toDate().toISOString();
+                        if (data.readAt?.toDate) base.readAt = data.readAt.toDate().toISOString();
+
+                        return base as T;
+                    });
 
                     setState({ data: docs, loading: false, error: null });
                 },
@@ -134,17 +140,7 @@ export function useStudyLogs(studentId: string) {
 }
 
 export function useNotifications(userId: string) {
-    interface Notification {
-        id: string;
-        userId: string;
-        type: string;
-        title: string;
-        body: string;
-        read: boolean;
-        createdAt: string;
-    }
-
-    return useFirestoreCollection<Notification>('notifications', {
+    return useFirestoreCollection<NotificationItem>('notifications', {
         field: 'userId',
         operator: '==',
         value: userId,

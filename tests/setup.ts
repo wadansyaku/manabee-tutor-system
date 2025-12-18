@@ -1,12 +1,13 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
-// Mock localStorage
+// Mock localStorage with in-memory map for stateful tests
+const localStore = new Map<string, string>();
 const localStorageMock = {
-    getItem: vi.fn((key: string) => null),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
+    getItem: vi.fn((key: string) => localStore.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => { localStore.set(key, value); }),
+    removeItem: vi.fn((key: string) => { localStore.delete(key); }),
+    clear: vi.fn(() => localStore.clear()),
     length: 0,
     key: vi.fn()
 };
@@ -46,16 +47,14 @@ vi.mock('firebase/storage', () => ({
 }));
 
 // Mock import.meta.env
-vi.stubGlobal('import', {
-    meta: {
-        env: {
-            VITE_APP_MODE: 'local',
-            VITE_FIREBASE_API_KEY: 'test-key',
-            VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com',
-            VITE_FIREBASE_PROJECT_ID: 'test-project',
-            VITE_FIREBASE_STORAGE_BUCKET: 'test.appspot.com',
-            VITE_FIREBASE_MESSAGING_SENDER_ID: '123456789',
-            VITE_FIREBASE_APP_ID: '1:123:web:abc'
-        }
+vi.stubGlobal('import.meta', {
+    env: {
+        VITE_APP_MODE: 'local',
+        VITE_FIREBASE_API_KEY: 'test-key',
+        VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com',
+        VITE_FIREBASE_PROJECT_ID: 'test-project',
+        VITE_FIREBASE_STORAGE_BUCKET: 'test.appspot.com',
+        VITE_FIREBASE_MESSAGING_SENDER_ID: '123456789',
+        VITE_FIREBASE_APP_ID: '1:123:web:abc'
     }
 });
