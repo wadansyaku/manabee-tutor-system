@@ -8,7 +8,6 @@ jobs:
   preview:
     name: Deploy Preview
     runs-on: ubuntu-latest
-    if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
     permissions:
       pull-requests: write
       contents: read
