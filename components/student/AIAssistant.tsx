@@ -35,7 +35,7 @@ const CHARACTERS: Character[] = [
         id: 'mana',
         name: 'マナビー',
         avatar: '🐝',
-        personality: '明るくて親切',
+        personality: '明るくて親切なAI先生',
         systemPrompt: `あなたは「マナビー」という名前の勉強のサポートキャラクターです。
 蜂のような明るく元気なキャラクターで、小中学生の学習をサポートします。
 
@@ -78,6 +78,52 @@ const CHARACTERS: Character[] = [
         color: 'from-pink-400 to-rose-500',
     },
 ];
+
+// 3D Animation styles for Manabee
+const Manabee3DAvatar: React.FC<{ isActive?: boolean; isTyping?: boolean; size?: 'sm' | 'md' | 'lg' }> = ({
+    isActive = false,
+    isTyping = false,
+    size = 'md'
+}) => {
+    const sizeClasses = {
+        sm: 'w-8 h-8 text-lg',
+        md: 'w-12 h-12 text-2xl',
+        lg: 'w-20 h-20 text-4xl'
+    };
+
+    return (
+        <div
+            className={`${sizeClasses[size]} relative`}
+            style={{ perspective: '200px' }}
+        >
+            {/* Glow effect */}
+            <div className={`absolute inset-0 bg-gradient-to-r from-amber-300 to-yellow-400 rounded-full blur-md opacity-60 ${isActive ? 'animate-pulse' : ''}`} />
+
+            {/* Main character container */}
+            <div
+                className={`relative bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-lg border-2 border-yellow-300
+                    ${isTyping ? 'animate-bounce' : isActive ? 'hover:scale-110 transition-transform' : ''}
+                `}
+                style={{
+                    transformStyle: 'preserve-3d',
+                    animation: isActive && !isTyping ? 'manabee-float 3s ease-in-out infinite' : undefined,
+                }}
+            >
+                <span className="drop-shadow-md" style={{ filter: 'drop-shadow(2px 2px 2px rgba(0,0,0,0.2))' }}>
+                    🐝
+                </span>
+            </div>
+
+            {/* Sparkle effects */}
+            {isActive && (
+                <>
+                    <div className="absolute -top-1 -right-1 text-xs animate-ping">✨</div>
+                    <div className="absolute -bottom-1 -left-1 text-xs animate-pulse" style={{ animationDelay: '0.5s' }}>⭐</div>
+                </>
+            )}
+        </div>
+    );
+};
 
 const getStatusLabel = (status: string): string => {
     switch (status) {
@@ -390,8 +436,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentUser, questions
                     <button
                         onClick={() => setViewMode('chat')}
                         className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${viewMode === 'chat'
-                                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                                : 'text-gray-500 hover:bg-gray-50'
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                            : 'text-gray-500 hover:bg-gray-50'
                             }`}
                     >
                         💬 チャットで質問
@@ -399,8 +445,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentUser, questions
                     <button
                         onClick={() => setViewMode('photo')}
                         className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${viewMode === 'photo'
-                                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                                : 'text-gray-500 hover:bg-gray-50'
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                            : 'text-gray-500 hover:bg-gray-50'
                             }`}
                     >
                         📸 写真で質問
@@ -414,9 +460,13 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentUser, questions
                         <div className={`bg-gradient-to-r ${selectedCharacter.color} p-4 text-white`}>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-3xl">
-                                        {selectedCharacter.avatar}
-                                    </div>
+                                    {selectedCharacter.id === 'mana' ? (
+                                        <Manabee3DAvatar isActive={true} isTyping={isLoading} size="md" />
+                                    ) : (
+                                        <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center text-3xl">
+                                            {selectedCharacter.avatar}
+                                        </div>
+                                    )}
                                     <div>
                                         <h3 className="font-bold text-lg">{selectedCharacter.name}</h3>
                                         <p className="text-sm opacity-80">{selectedCharacter.personality}</p>
@@ -437,8 +487,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentUser, questions
                                             key={char.id}
                                             onClick={() => changeCharacter(char)}
                                             className={`p-3 rounded-xl text-center transition-all ${selectedCharacter.id === char.id
-                                                    ? 'bg-white text-gray-800'
-                                                    : 'bg-white/20 hover:bg-white/30'
+                                                ? 'bg-white text-gray-800'
+                                                : 'bg-white/20 hover:bg-white/30'
                                                 }`}
                                         >
                                             <span className="text-2xl block mb-1">{char.avatar}</span>
@@ -463,8 +513,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentUser, questions
                                     )}
                                     <div
                                         className={`max-w-[75%] px-4 py-3 rounded-2xl ${message.role === 'user'
-                                                ? 'bg-blue-500 text-white rounded-br-sm'
-                                                : 'bg-white shadow-sm border border-gray-100 rounded-bl-sm'
+                                            ? 'bg-blue-500 text-white rounded-br-sm'
+                                            : 'bg-white shadow-sm border border-gray-100 rounded-bl-sm'
                                             }`}
                                     >
                                         {message.imageUrl && (
@@ -541,8 +591,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentUser, questions
                                     onClick={sendChatMessage}
                                     disabled={isLoading || (!input.trim() && !selectedImage)}
                                     className={`px-6 py-3 rounded-xl font-medium transition-all ${isLoading || (!input.trim() && !selectedImage)
-                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                            : `bg-gradient-to-r ${selectedCharacter.color} text-white hover:shadow-lg`
+                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                        : `bg-gradient-to-r ${selectedCharacter.color} text-white hover:shadow-lg`
                                         }`}
                                 >
                                     送信
@@ -575,8 +625,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ currentUser, questions
                                         key={sub}
                                         onClick={() => setNewQuestionSubject(sub)}
                                         className={`px-4 py-2 text-sm rounded-full border transition-all ${newQuestionSubject === sub
-                                                ? 'bg-indigo-600 text-white border-indigo-600'
-                                                : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                                            ? 'bg-indigo-600 text-white border-indigo-600'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
                                             }`}
                                     >
                                         {sub}

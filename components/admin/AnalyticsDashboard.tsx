@@ -18,9 +18,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ currentU
     const [loading, setLoading] = useState(true);
     const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
     const [recentActivity, setRecentActivity] = useState<{ time: string; action: string; icon: string; color: string; }[]>([]);
+    const initialLoadDone = React.useRef(false);
 
     useEffect(() => {
-        loadStats();
+        // Prevent multiple rapid loads
+        if (!initialLoadDone.current || stats !== null) {
+            loadStats();
+            initialLoadDone.current = true;
+        }
     }, [timeRange]);
 
     const loadStats = async () => {

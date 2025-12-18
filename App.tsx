@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { MOCK_LESSON, INITIAL_STUDENT_CONTEXT } from './constants';
 import { UserRole, Lesson, StudentSchool, AuditLog, User, QuestionJob } from './types';
 import { StorageService } from './services/storageService';
@@ -47,44 +47,50 @@ export default function App() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [studentsList, setStudentsList] = useState<User[]>([]);
 
-  // Data Loading with optional studentId filtering for multi-child support
-  const refreshData = async (studentId?: string) => {
+  // Data Loading with optional studentId and user filtering for multi-child support
+  // Use provided user for role-based filtering to avoid crashes during masquerade
+  const refreshData = useCallback(async (studentId?: string, targetUser?: User) => {
     const targetStudentId = studentId || selectedStudentId;
+    const currentUserForFetch = targetUser || user;
+
+    // Skip if no user available
+    if (!currentUserForFetch) return;
 
     // Load static data (Schools, Questions)
-    // Note: detailed implementation should move to Firebase Service entirely in production
     if (import.meta.env.VITE_APP_MODE === 'firebase') {
-      const { firestoreOperations } = await import('./services/firebaseService');
+      try {
+        const { firestoreOperations } = await import('./services/firebaseService');
 
-      // Fetch students list for Tutors and Guardians
-      if (user?.role === UserRole.GUARDIAN || user?.role === UserRole.TUTOR) {
-        const linked = await firestoreOperations.getLinkedStudents(user.id, user.role);
-        setStudentsList(linked);
+        // Fetch students list for Tutors and Guardians only
+        if (currentUserForFetch.role === UserRole.GUARDIAN || currentUserForFetch.role === UserRole.TUTOR) {
+          const linked = await firestoreOperations.getLinkedStudents(currentUserForFetch.id, currentUserForFetch.role);
+          setStudentsList(linked);
 
-        // If current selected student is not in the list (and list is not empty), select first
-        if (linked.length > 0 && !linked.find(s => s.id === targetStudentId)) {
-          handleSelectStudent(linked[0].id);
+          // If current selected student is not in the list (and list is not empty), select first
+          if (linked.length > 0 && !linked.find(s => s.id === targetStudentId)) {
+            setSelectedStudentId(linked[0].id);
+            localStorage.setItem('manabee_selected_student', linked[0].id);
+          }
         }
+
+        // Fetch Real Data
+        const [fbSchools, fbLesson, fbQuestions] = await Promise.all([
+          firestoreOperations.getSchools(targetStudentId),
+          firestoreOperations.getLesson('l1'),
+          firestoreOperations.getQuestions(currentUserForFetch.role, currentUserForFetch.id)
+        ]);
+
+        if (fbSchools) setSchools(fbSchools);
+        if (fbLesson) setLesson(fbLesson);
+        if (fbQuestions) setQuestions(fbQuestions);
+
+        const fbLogs = await firestoreOperations.getAuditLogs();
+        setLogs(fbLogs);
+
+        return; // Exit early to avoid overwriting with local data
+      } catch (error) {
+        console.error('Firebase data fetch failed:', error);
       }
-
-      // Fetch Real Data
-      const [fbSchools, fbLesson, fbQuestions] = await Promise.all([
-        firestoreOperations.getSchools(targetStudentId),
-        firestoreOperations.getLesson('l1'), // Default lesson for now
-        firestoreOperations.getQuestions(user.role, user.id)
-      ]);
-
-      if (fbSchools) setSchools(fbSchools);
-      if (fbLesson) setLesson(fbLesson);
-      if (fbQuestions) setQuestions(fbQuestions);
-
-      // We skip StorageService fallback if we successfully fetched from Firebase
-      // But we might want audit logs from StorageService? logs are not yet in FirebaseService fully?
-      // getAuditLogs IS in firebaseService.
-      const fbLogs = await firestoreOperations.getAuditLogs();
-      setLogs(fbLogs);
-
-      return; // Exit early to avoid overwriting with local data
     }
 
     // Existing StorageService fallback / hybrid
@@ -92,7 +98,7 @@ export default function App() {
     const allQuestions = StorageService.loadQuestions();
 
     // For Guardians and Tutors, filter data by selected student
-    if (user?.role === UserRole.GUARDIAN || user?.role === UserRole.TUTOR) {
+    if (currentUserForFetch.role === UserRole.GUARDIAN || currentUserForFetch.role === UserRole.TUTOR) {
       setSchools(allSchools.filter(s => s.studentId === targetStudentId));
       setQuestions(allQuestions.filter(q => q.studentId === targetStudentId));
     } else {
@@ -101,6 +107,12 @@ export default function App() {
     }
     setLesson(StorageService.loadLesson());
     setLogs(StorageService.loadLogs());
+  }, [selectedStudentId, user]);
+
+  // Handler for student selection with localStorage persistence
+  const handleSelectStudent = (id: string) => {
+    setSelectedStudentId(id);
+    localStorage.setItem('manabee_selected_student', id);
   };
 
   useEffect(() => {
@@ -138,13 +150,7 @@ export default function App() {
     };
     window.addEventListener('manabee-data-synced', handleSync);
     return () => window.removeEventListener('manabee-data-synced', handleSync);
-  }, [selectedStudentId, user?.role]);
-
-  // Handler for student selection with localStorage persistence
-  const handleSelectStudent = (id: string) => {
-    setSelectedStudentId(id);
-    localStorage.setItem('manabee_selected_student', id);
-  };
+  }, [selectedStudentId, user?.role, refreshData]);
 
   const handleLoginSuccess = async (u: User) => {
     setUser(u);
