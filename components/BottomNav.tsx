@@ -3,7 +3,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { User, UserRole } from '../types';
-import { getTheme } from '../theme';
 
 interface BottomNavProps {
     currentUser: User;

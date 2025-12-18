@@ -106,9 +106,51 @@ class NotificationService {
     private cache: NotificationItem[] = [];
     private settings: NotificationSettings = defaultNotificationSettings;
     private lastUserId?: string;
+    private browserPrefs: { enabled: boolean; reminderDays: number[]; pushEnabled: boolean; fcmToken?: string } = {
+        enabled: false,
+        reminderDays: [0, 1],
+        pushEnabled: false,
+    };
 
     constructor() {
         this.loadFromLocal();
+    }
+
+    // --- Legacy browser notification helpers (for NotificationSettings component) ---
+    isSupported(): boolean {
+        return typeof window !== 'undefined' && 'Notification' in window;
+    }
+
+    getPermissionStatus(): NotificationPermission | 'unsupported' {
+        if (!this.isSupported()) return 'unsupported';
+        return Notification.permission;
+    }
+
+    async requestPermission(): Promise<boolean> {
+        if (!this.isSupported()) return false;
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            this.browserPrefs.enabled = true;
+            this.persistLocal(this.cache);
+            return true;
+        }
+        return false;
+    }
+
+    getPreferences() {
+        return { ...this.browserPrefs };
+    }
+
+    updatePreferences(prefs: Partial<typeof this.browserPrefs>) {
+        this.browserPrefs = { ...this.browserPrefs, ...prefs };
+    }
+
+    testNotification() {
+        if (!this.isSupported() || this.getPermissionStatus() !== 'granted') return;
+        new Notification('🔔 テスト通知', {
+            body: '通知の設定が正しく動作しています',
+            icon: '/favicon.ico',
+        });
     }
 
     private loadFromLocal() {
@@ -333,6 +375,30 @@ class NotificationService {
         if (reminders.length) {
             this.cache = [...reminders, ...this.cache];
             this.persistLocal(this.cache);
+        }
+    }
+
+    /**
+     * Compatibility: used by gamificationService to announce level-up.
+     */
+    async sendLevelUpNotification(userId: string, newLevel: number, xpGained: number): Promise<void> {
+        const message = `おめでとうございます！${xpGained}XPを獲得してレベル${newLevel}に到達しました！`;
+        await this.create({
+            userId,
+            role: UserRole.STUDENT,
+            type: 'achievement',
+            title: `🎉 レベルアップ！ Lv.${newLevel}`,
+            body: message,
+            priority: 'high',
+            deepLink: '/goals',
+            payload: { badgeId: `level-${newLevel}`, ctaLabel: '達成を確認' },
+        });
+    }
+
+    // Lightweight local notification (for compatibility with legacy calls)
+    sendNotification(title: string, body: string, tag?: string): void {
+        if (this.isSupported() && this.getPermissionStatus() === 'granted') {
+            new Notification(title, { body, tag, icon: '/favicon.ico' });
         }
     }
 

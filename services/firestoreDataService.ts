@@ -382,9 +382,17 @@ export async function getAnalyticsEvents(filters: {
     }
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || doc.data().timestamp,
-    })) as AnalyticsEvent[];
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            userId: data.userId,
+            userRole: data.userRole,
+            eventType: data.eventType,
+            eventData: data.eventData,
+            pageUrl: data.pageUrl,
+            sessionId: data.sessionId,
+            createdAt: data.timestamp?.toDate?.()?.toISOString() || data.timestamp,
+        } as AnalyticsEvent;
+    });
 }

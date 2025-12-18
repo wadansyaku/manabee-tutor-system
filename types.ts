@@ -329,7 +329,7 @@ export interface StudyLog {
 }
 
 // Goal (目標)
-export type GoalType = 'exam' | 'score' | 'habit' | 'study_time';
+export type GoalType = 'exam' | 'score' | 'habit' | 'study_time' | 'academic' | 'skill';
 export type GoalStatus = 'active' | 'completed' | 'failed' | 'paused';
 
 export interface Goal {

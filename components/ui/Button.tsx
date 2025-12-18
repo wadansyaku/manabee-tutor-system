@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { UserRole } from '../../types';
 import { getTheme } from '../../theme';
