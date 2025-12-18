@@ -15,7 +15,7 @@ test.describe('Authentication', () => {
     });
 
     test('should display login screen on initial load', async ({ page }) => {
-        await expect(page.locator('h1, h2').first()).toContainText(/まなびー|ログイン/);
+        await expect(page.locator('h1, h2').first()).toContainText(/まなびー|ログイン|Manabee/i);
     });
 
     test('should show demo login buttons in firebase mode', async ({ page }) => {
@@ -39,7 +39,7 @@ test.describe('Authentication', () => {
             // Wait for login to complete
             await page.waitForTimeout(2000);
             // Check for student dashboard indicators
-            await expect(page.locator('text=/ダッシュボード|宿題|質問/')).toBeVisible({ timeout: 10000 });
+            await expect(page.locator('text=/ダッシュボード|宿題|質問/').first()).toBeVisible({ timeout: 10000 });
         } else {
             // Local mode - use email input
             const emailInput = page.locator('input[type="email"]');
@@ -59,7 +59,7 @@ test.describe('Authentication', () => {
             await demoButton.click();
             await page.waitForTimeout(2000);
             // Admin should see system/settings related items
-            await expect(page.locator('text=/ダッシュボード|設定|システム/')).toBeVisible({ timeout: 10000 });
+            await expect(page.locator('text=/ダッシュボード|設定|システム/').first()).toBeVisible({ timeout: 10000 });
         }
     });
 

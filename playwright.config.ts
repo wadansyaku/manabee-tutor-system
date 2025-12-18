@@ -7,6 +7,10 @@ import { defineConfig, devices } from '@playwright/test';
  * Debug: npx playwright test --debug
  * With existing server: SKIP_WEBSERVER=1 npx playwright test
  */
+const serverPort = Number(process.env.E2E_DEV_PORT || 3001);
+const baseURL = `http://localhost:${serverPort}`;
+const webServerCommand = `VITE_APP_MODE=local npm run dev -- --host --clearScreen false`;
+
 export default defineConfig({
     testDir: './tests/e2e',
     fullyParallel: true,
@@ -16,7 +20,7 @@ export default defineConfig({
     reporter: 'html',
     timeout: 30000,
     use: {
-        baseURL: 'http://localhost:5173',
+        baseURL,
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
     },
@@ -34,10 +38,9 @@ export default defineConfig({
 
     // Only start webServer if not skipped and not already running
     webServer: process.env.SKIP_WEBSERVER ? undefined : {
-        command: 'npm run dev',
-        url: 'http://localhost:5173',
+        command: webServerCommand,
+        url: baseURL,
         reuseExistingServer: true,
         timeout: 30 * 1000,
     },
 });
-

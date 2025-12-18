@@ -267,6 +267,51 @@ export interface Message {
   readAt?: string;
 }
 
+// Notifications (アプリ内通知)
+export type NotificationType = 'homework' | 'lesson' | 'achievement' | 'system' | 'message';
+export type NotificationPriority = 'low' | 'normal' | 'high';
+
+export interface NotificationPayload {
+  taskId?: string;
+  lessonId?: string;
+  badgeId?: string;
+  dueDate?: string; // ISO Date
+  startTime?: string; // ISO Date
+  ctaLabel?: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  role: UserRole;
+  type: NotificationType;
+  title: string;
+  body: string;
+  createdAt: string;
+  readAt?: string | null;
+  priority?: NotificationPriority;
+  deepLink?: string;
+  payload?: NotificationPayload;
+}
+
+export interface ReminderSetting {
+  enabled: boolean;
+  offsets: number[]; // minutes before (for lessons) or hours/days before (for homework)
+}
+
+export interface NotificationSettings {
+  homeworkReminder: ReminderSetting;
+  lessonReminder: ReminderSetting;
+  achievement: ReminderSetting;
+}
+
+export interface NotificationQueryOptions {
+  categories?: NotificationType[];
+  unreadOnly?: boolean;
+  sortBy?: 'newest' | 'priority';
+  limit?: number;
+}
+
 // Study Log (学習ログ)
 export type StudyType = 'homework' | 'review' | 'self_study' | 'exam_prep' | 'lesson';
 
@@ -284,7 +329,7 @@ export interface StudyLog {
 }
 
 // Goal (目標)
-export type GoalType = 'exam' | 'score' | 'habit' | 'study_time';
+export type GoalType = 'exam' | 'score' | 'habit' | 'study_time' | 'academic' | 'skill';
 export type GoalStatus = 'active' | 'completed' | 'failed' | 'paused';
 
 export interface Goal {
@@ -312,7 +357,13 @@ export type AnalyticsEventType =
   | 'question_submit'
   | 'login'
   | 'logout'
-  | 'feature_use';
+  | 'feature_use'
+  | 'task_start'
+  | 'task_complete'
+  | 'notif_click'
+  | 'notif_mark_all'
+  | 'ai_send'
+  | 'goal_update';
 
 export interface AnalyticsEvent {
   id: string;

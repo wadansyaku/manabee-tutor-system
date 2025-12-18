@@ -11,6 +11,8 @@ const goalTypeConfig: Record<GoalType, { label: string; icon: string; color: str
     habit: { label: '習慣', icon: '🔄', color: 'from-green-500 to-emerald-500' },
     exam: { label: '受験', icon: '🎯', color: 'from-red-500 to-rose-500' },
     skill: { label: 'スキル', icon: '⭐', color: 'from-purple-500 to-pink-500' },
+    score: { label: 'スコア', icon: '📈', color: 'from-amber-500 to-orange-500' },
+    study_time: { label: '学習時間', icon: '⏱️', color: 'from-teal-500 to-cyan-500' },
 };
 
 const statusConfig: Record<GoalStatus, { label: string; color: string }> = {

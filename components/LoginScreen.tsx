@@ -24,10 +24,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
 
 
-    const handleEmailSubmit = async () => {
-        if (!email) {
+    const handleEmailSubmit = async (nextEmail?: string) => {
+        const targetEmail = nextEmail ?? email;
+        if (!targetEmail) {
             setError('メールアドレスを入力してください');
             return;
+        }
+        if (nextEmail) {
+            setEmail(nextEmail);
         }
         setError(null);
         setIsLoading(true);
@@ -39,14 +43,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             setStep('password');
         } else {
             // Local mode: check if user exists
-            const res = StorageService.login(email);
+            const res = StorageService.login(targetEmail);
             if (!res.success && res.error === 'ユーザーが見つかりません') {
                 setError('ユーザーが見つかりません');
                 setIsLoading(false);
                 return;
             }
 
-            const check = StorageService.login(email, '');
+            const check = StorageService.login(targetEmail, '');
             if (check.success) {
                 onLoginSuccess(check.user!);
             } else if (check.error === 'パスワードを入力してください') {
@@ -174,9 +178,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         setIsLoading(false);
     };
 
-    const quickLogin = (userEmail: string) => {
+    const quickLogin = async (userEmail: string) => {
         setEmail(userEmail);
         setError(null);
+        setIsLoading(true);
+
+        // For local/dev mode, bypass password prompts and log in with a default password when needed
+        if (!isFirebaseMode) {
+            const direct = StorageService.login(userEmail, '123');
+            if (direct.success && direct.user) {
+                onLoginSuccess(direct.user);
+                setIsLoading(false);
+                return;
+            }
+        }
+
+        setIsLoading(false);
+        void handleEmailSubmit(userEmail);
     };
 
     const roleOptions = [

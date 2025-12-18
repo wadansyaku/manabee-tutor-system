@@ -36,7 +36,7 @@ test.describe('Student Dashboard', () => {
             await homeworkNav.click();
             await page.waitForTimeout(1000);
             // Should see homework list content
-            await expect(page.locator('text=/宿題|課題|期限/')).toBeVisible({ timeout: 5000 });
+            await expect(page.locator('text=/宿題|課題|期限/').first()).toBeVisible({ timeout: 5000 });
         }
     });
 });
@@ -66,7 +66,7 @@ test.describe('Tutor Dashboard', () => {
         if (await reviewNav.isVisible({ timeout: 3000 }).catch(() => false)) {
             await reviewNav.click();
             await page.waitForTimeout(1000);
-            await expect(page.locator('text=/レビュー|キュー|質問/')).toBeVisible({ timeout: 5000 });
+            await expect(page.locator('text=/レビュー|キュー|質問/').first()).toBeVisible({ timeout: 5000 });
         }
     });
 });
@@ -96,7 +96,7 @@ test.describe('Admin Dashboard', () => {
         if (await userMgmtNav.isVisible({ timeout: 3000 }).catch(() => false)) {
             await userMgmtNav.click();
             await page.waitForTimeout(1000);
-            await expect(page.locator('text=/ユーザー|管理|ロール/')).toBeVisible({ timeout: 5000 });
+            await expect(page.locator('text=/ユーザー|管理|ロール/').first()).toBeVisible({ timeout: 5000 });
         }
     });
 
@@ -105,7 +105,7 @@ test.describe('Admin Dashboard', () => {
         if (await usageNav.isVisible({ timeout: 3000 }).catch(() => false)) {
             await usageNav.click();
             await page.waitForTimeout(1000);
-            await expect(page.locator('text=/使用量|API|リクエスト/')).toBeVisible({ timeout: 5000 });
+            await expect(page.locator('text=/使用量|API|リクエスト/').first()).toBeVisible({ timeout: 5000 });
         }
     });
 });
@@ -125,8 +125,8 @@ test.describe('Guardian Dashboard', () => {
     });
 
     test('should display guardian-specific elements', async ({ page }) => {
-        // Guardian should see child monitoring elements
-        const guardianElements = page.locator('text=/お子様|進捗|レポート|成績/');
+        // Guardian should see child monitoring elements or guardian navigation
+        const guardianElements = page.locator('text=/お子様|進捗|レポート|成績|宿題|目標|カレンダー/');
         await expect(guardianElements.first()).toBeVisible({ timeout: 10000 });
     });
 

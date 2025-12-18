@@ -1,13 +1,23 @@
 // Firestore Data Service
 // CRUD operations for all data types with real-time sync
 
-import { Goal, GoalStatus, Attendance, StudyLog, HomeworkItem, AnalyticsEvent } from '../types';
+import {
+    Goal,
+    GoalStatus,
+    Attendance,
+    StudyLog,
+    HomeworkItem,
+    AnalyticsEvent,
+    NotificationItem,
+    NotificationQueryOptions,
+    NotificationSettings,
+} from '../types';
 
 // Dynamic import for Firebase
 const getFirestoreDb = async () => {
-    const { getFirestore, getApp } = await import('firebase/app');
-    const { getFirestore: getFs } = await import('firebase/firestore');
-    return getFs(getApp());
+    const { getApp } = await import('firebase/app');
+    const { getFirestore } = await import('firebase/firestore');
+    return getFirestore(getApp());
 };
 
 // ============ GOALS ============
@@ -199,34 +209,40 @@ export async function getStudyLogs(studentId: string, days: number = 7): Promise
 
 // ============ NOTIFICATIONS ============
 
-interface Notification {
-    id?: string;
-    userId: string;
-    type: 'homework' | 'lesson' | 'message' | 'achievement' | 'system';
-    title: string;
-    body: string;
-    read: boolean;
-    createdAt: string;
-    actionUrl?: string;
-}
+export const defaultNotificationSettings: NotificationSettings = {
+    homeworkReminder: { enabled: true, offsets: [24, 3] }, // hours before
+    lessonReminder: { enabled: true, offsets: [180, 60] }, // minutes before
+    achievement: { enabled: true, offsets: [0] },
+};
 
-export async function createNotification(notification: Omit<Notification, 'id' | 'createdAt'>): Promise<Notification> {
+const mapNotificationDoc = (doc: any): NotificationItem => ({
+    id: doc.id,
+    ...doc.data(),
+    priority: doc.data().priority || 'normal',
+    readAt: doc.data().readAt?.toDate?.()?.toISOString() || doc.data().readAt || null,
+    createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt,
+});
+
+export async function createNotification(notification: Omit<NotificationItem, 'id' | 'createdAt'>): Promise<NotificationItem> {
     const { collection, addDoc, Timestamp } = await import('firebase/firestore');
     const db = await getFirestoreDb();
 
     const docRef = await addDoc(collection(db, 'notifications'), {
         ...notification,
+        readAt: notification.readAt || null,
         createdAt: Timestamp.now(),
+        read: Boolean(notification.readAt),
     });
 
     return {
         id: docRef.id,
         ...notification,
+        readAt: notification.readAt || null,
         createdAt: new Date().toISOString(),
     };
 }
 
-export async function getNotifications(userId: string): Promise<Notification[]> {
+export async function getNotifications(userId: string, options: NotificationQueryOptions = {}): Promise<NotificationItem[]> {
     const { collection, query, where, getDocs, orderBy, limit } = await import('firebase/firestore');
     const db = await getFirestoreDb();
 
@@ -234,26 +250,41 @@ export async function getNotifications(userId: string): Promise<Notification[]> 
         collection(db, 'notifications'),
         where('userId', '==', userId),
         orderBy('createdAt', 'desc'),
-        limit(50)
+        limit(options.limit || 100)
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt,
-    })) as Notification[];
+    let docs = snapshot.docs.map(mapNotificationDoc) as NotificationItem[];
+
+    if (options.categories?.length) {
+        docs = docs.filter(d => options.categories!.includes(d.type));
+    }
+
+    if (options.unreadOnly) {
+        docs = docs.filter(d => !d.readAt);
+    }
+
+    if (options.sortBy === 'priority') {
+        const priorityOrder: Record<string, number> = { high: 0, normal: 1, low: 2 };
+        docs = [...docs].sort((a, b) => {
+            const pDiff = (priorityOrder[a.priority || 'normal'] ?? 1) - (priorityOrder[b.priority || 'normal'] ?? 1);
+            if (pDiff !== 0) return pDiff;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+    }
+
+    return docs;
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
-    const { doc, updateDoc } = await import('firebase/firestore');
+    const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
     const db = await getFirestoreDb();
 
-    await updateDoc(doc(db, 'notifications', notificationId), { read: true });
+    await updateDoc(doc(db, 'notifications', notificationId), { read: true, readAt: Timestamp.now() });
 }
 
-export async function markAllNotificationsRead(userId: string): Promise<void> {
-    const { collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
+export async function markAllNotificationsRead(userId: string): Promise<string[]> {
+    const { collection, query, where, getDocs, writeBatch, Timestamp } = await import('firebase/firestore');
     const db = await getFirestoreDb();
 
     const q = query(
@@ -264,12 +295,56 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
 
     const snapshot = await getDocs(q);
     const batch = writeBatch(db);
+    const unreadIds: string[] = [];
 
     snapshot.docs.forEach(docSnap => {
-        batch.update(docSnap.ref, { read: true });
+        unreadIds.push(docSnap.id);
+        batch.update(docSnap.ref, { read: true, readAt: Timestamp.now() });
     });
 
     await batch.commit();
+    return unreadIds;
+}
+
+export async function updateNotificationsReadState(notificationIds: string[], readAt: Date | null): Promise<void> {
+    if (!notificationIds.length) return;
+    const { doc, writeBatch, Timestamp } = await import('firebase/firestore');
+    const db = await getFirestoreDb();
+    const batch = writeBatch(db);
+
+    notificationIds.forEach(id => {
+        batch.update(doc(db, 'notifications', id), {
+            read: Boolean(readAt),
+            readAt: readAt ? Timestamp.fromDate(readAt) : null,
+        });
+    });
+
+    await batch.commit();
+}
+
+export async function getNotificationSettings(userId: string): Promise<NotificationSettings> {
+    const { doc, getDoc } = await import('firebase/firestore');
+    const db = await getFirestoreDb();
+    const snapshot = await getDoc(doc(db, 'notification_settings', userId));
+
+    if (!snapshot.exists()) return defaultNotificationSettings;
+
+    return {
+        ...defaultNotificationSettings,
+        ...(snapshot.data() as Partial<NotificationSettings>),
+    };
+}
+
+export async function updateNotificationSettings(userId: string, updates: Partial<NotificationSettings>): Promise<NotificationSettings> {
+    const { doc, setDoc } = await import('firebase/firestore');
+    const db = await getFirestoreDb();
+    const merged = {
+        ...defaultNotificationSettings,
+        ...updates,
+    };
+
+    await setDoc(doc(db, 'notification_settings', userId), merged, { merge: true });
+    return merged;
 }
 
 // ============ ANALYTICS EVENTS ============
@@ -307,9 +382,17 @@ export async function getAnalyticsEvents(filters: {
     }
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate?.()?.toISOString() || doc.data().timestamp,
-    })) as AnalyticsEvent[];
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            userId: data.userId,
+            userRole: data.userRole,
+            eventType: data.eventType,
+            eventData: data.eventData,
+            pageUrl: data.pageUrl,
+            sessionId: data.sessionId,
+            createdAt: data.timestamp?.toDate?.()?.toISOString() || data.timestamp,
+        } as AnalyticsEvent;
+    });
 }
