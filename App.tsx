@@ -394,7 +394,14 @@ export default function App() {
                 <UserManagement
                   currentUser={effectiveUser}
                   onAudit={(action, summary) => StorageService.addLog(user, action, summary)}
-                  onMasquerade={(target) => setMasqueradeUser(target)}
+                  onMasquerade={(target) => {
+                    setMasqueradeUser(target);
+                    // Refresh data for the masqueraded user and navigate home
+                    setTimeout(() => {
+                      refreshData(undefined, target);
+                      window.location.hash = '/';
+                    }, 100);
+                  }}
                 />
               ) : <Navigate to="/" replace />
             } />

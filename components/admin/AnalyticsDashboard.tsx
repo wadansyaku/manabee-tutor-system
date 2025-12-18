@@ -21,15 +21,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ currentU
     const initialLoadDone = React.useRef(false);
 
     useEffect(() => {
-        // Prevent multiple rapid loads
-        if (!initialLoadDone.current || stats !== null) {
-            loadStats();
-            initialLoadDone.current = true;
-        }
+        loadStats();
     }, [timeRange]);
 
     const loadStats = async () => {
-        setLoading(true);
+        // Only show loading spinner on initial load to prevent flickering
+        if (!initialLoadDone.current) {
+            setLoading(true);
+        }
+        initialLoadDone.current = true;
 
         const isFirebaseMode = import.meta.env.VITE_APP_MODE === 'firebase';
 
