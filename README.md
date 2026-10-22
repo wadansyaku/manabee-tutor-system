@@ -27,7 +27,7 @@
 ## 🚀 クイックスタート
 
 ### 必要条件
-- Node.js 18+
+- Node.js 22.23.4 (see `.nvmrc` and `.node-version`)
 - npm または yarn
 
 

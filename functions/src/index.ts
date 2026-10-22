@@ -9,6 +9,9 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 
+// Record the managed runtime patch without exposing request data or credentials.
+console.info('Functions Node.js runtime', process.version);
+
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();

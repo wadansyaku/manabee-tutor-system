@@ -17,11 +17,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
+
+      - name: Verify Node.js runtime
+        run: node --version
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Functions dependencies for repository-wide type check
+        run: npm --prefix functions ci
 
       - name: Type check
         run: npx tsc --noEmit
@@ -40,8 +46,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
+
+      - name: Verify Node.js runtime
+        run: node --version
 
       - name: Install dependencies
         run: npm ci
@@ -74,9 +83,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
           cache-dependency-path: functions/package-lock.json
+
+      - name: Verify Node.js runtime
+        run: node --version
 
       - name: Install Functions dependencies
         run: npm --prefix functions ci
@@ -95,8 +107,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
+
+      - name: Verify Node.js runtime
+        run: node --version
 
       - name: Install dependencies
         run: npm ci
@@ -115,8 +130,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.23.4'
           cache: 'npm'
+
+      - name: Verify Node.js runtime
+        run: node --version
 
       - name: Install dependencies
         run: npm ci
