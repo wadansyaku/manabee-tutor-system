@@ -25,6 +25,8 @@ Validation ran on macOS arm64 using the official Node 22.23.4 binary after its S
 
 The E2E failures were a guardian quick login that returned "user not found" and two notification tests that did not reach authenticated navigation. Application UI, services, and the test specifications were not changed. These failures have not been independently reproduced on the previous Node runtime, so no claim is made that the migration caused or resolved them. The run used the existing cached Chromium 153 executable through a temporary test configuration; it did not install another browser or contact production Firebase.
 
+The first draft CI run confirmed Node 22.23.4 and successfully built Functions, but the repository-wide type check also includes Functions sources while that job installed only root dependencies. The type check job now installs both existing lockfiles, matching the successful local validation setup.
+
 ## Production verification remains pending
 
 `functions/package.json` selects a managed major version. It cannot establish Google's deployed patch version. A single startup log now records `process.version` without logging requests or credentials. After an authorized redeployment through the existing release workflow, confirm that the deployed revision corresponds to this change and inspect a cold start runtime log for Node 22.23.4 or a newer fixed 22.x version.

@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Functions dependencies for repository-wide type check
+        run: npm --prefix functions ci
+
       - name: Type check
         run: npx tsc --noEmit
 
