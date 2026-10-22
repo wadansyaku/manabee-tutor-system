@@ -43,6 +43,8 @@ exports.onUserCreated = exports.cleanupRateLimits = exports.registerFcmToken = e
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const genai_1 = require("@google/genai");
+// Record the managed runtime patch without exposing request data or credentials.
+console.info('Functions Node.js runtime', process.version);
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
